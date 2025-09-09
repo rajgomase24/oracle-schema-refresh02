@@ -1,0 +1,33 @@
+-- Validation script to verify refresh operation
+SET SERVEROUTPUT ON
+SET FEEDBACK OFF
+DECLARE
+  v_object_count NUMBER;
+  v_refresh_date VARCHAR2(20);
+BEGIN
+  -- Check if schema exists
+  SELECT COUNT(*) INTO v_object_count 
+  FROM all_objects 
+  WHERE owner = UPPER('{{ target_schema }}');
+  
+  IF v_object_count > 0 THEN
+    DBMS_OUTPUT.PUT_LINE('SUCCESS: Schema {{ target_schema }} exists with ' || v_object_count || ' objects');
+  ELSE
+    DBMS_OUTPUT.PUT_LINE('ERROR: Schema {{ target_schema }} has no objects');
+    RAISE_APPLICATION_ERROR(-20001, 'Refresh validation failed');
+  END IF;
+  
+  -- Get latest refresh timestamp (assuming there's a table with refresh info)
+  BEGIN
+    SELECT TO_CHAR(MAX(refresh_date), 'YYYY-MM-DD HH24:MI:SS')
+    INTO v_refresh_date
+    FROM {{ target_schema }}.refresh_metadata;
+    
+    DBMS_OUTPUT.PUT_LINE('SUCCESS: Latest refresh at ' || v_refresh_date);
+  EXCEPTION
+    WHEN OTHERS THEN
+      DBMS_OUTPUT.PUT_LINE('INFO: No refresh metadata found');
+  END;
+END;
+/
+EXIT;

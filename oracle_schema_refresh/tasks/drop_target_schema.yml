@@ -1,0 +1,47 @@
+- name: Kill active sessions for target schema
+  script: |
+    #!/bin/bash
+    sqlplus -s /nolog <<EOF
+    CONNECT sys/{{ sys_password }}@{{ target_db_host }}:{{ target_db_port }}/{{ target_db_sid }} as sysdba
+    BEGIN
+      FOR sess IN (SELECT sid, serial# FROM v\$session WHERE username = UPPER('{{ target_schema }}'))
+      LOOP
+        EXECUTE IMMEDIATE 'ALTER SYSTEM KILL SESSION ''' || sess.sid || ',' || sess.serial# || ''' IMMEDIATE';
+      END LOOP;
+    END;
+    /
+    EOF
+  args:
+    executable: /bin/bash
+  environment:
+    ORACLE_HOME: "{{ oracle_home }}"
+  become_user: "{{ oracle_user }}"
+  ignore_errors: yes
+
+- name: Drop target schema
+  script: |
+    #!/bin/bash
+    sqlplus -s /nolog <<EOF
+    CONNECT sys/{{ sys_password }}@{{ target_db_host }}:{{ target_db_port }}/{{ target_db_sid }} as sysdba
+    DECLARE
+      user_exists NUMBER;
+    BEGIN
+      SELECT COUNT(*) INTO user_exists FROM dba_users WHERE username = UPPER('{{ target_schema }}');
+      IF user_exists > 0 THEN
+        EXECUTE IMMEDIATE 'DROP USER {{ target_schema }} CASCADE';
+      END IF;
+    EXCEPTION
+      WHEN OTHERS THEN
+        RAISE;
+    END;
+    /
+    EOF
+  args:
+    executable: /bin/bash
+  environment:
+    ORACLE_HOME: "{{ oracle_home }}"
+  become_user: "{{ oracle_user }}"
+  register: drop_result
+  failed_when: 
+    - drop_result.rc != 0
+    - "'does not exist' not in drop_result.stderr"

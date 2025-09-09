@@ -1,0 +1,18 @@
+- name: Transfer dump file between servers
+  synchronize:
+    src: "{{ oracle_data_pump_dir }}/{{ dump_file_name }}"
+    dest: "{{ oracle_data_pump_dir }}/{{ dump_file_name }}"
+    mode: pull
+  delegate_to: "{{ target_db_host }}"
+  when: source_db_host != target_db_host
+
+- name: Verify transferred file
+  stat:
+    path: "{{ oracle_data_pump_dir }}/{{ dump_file_name }}"
+  register: dump_file_stat
+  delegate_to: "{{ target_db_host }}"
+
+- name: Fail if dump file not found
+  fail:
+    msg: "Dump file not found on target server"
+  when: not dump_file_stat.stat.exists

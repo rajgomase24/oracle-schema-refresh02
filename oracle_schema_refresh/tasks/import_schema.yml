@@ -1,0 +1,21 @@
+- name: Import schema to target
+  command: >
+    impdp {{ db_user }}/{{ db_password }}@{{ target_db_host }}:{{ target_db_port }}/{{ target_db_sid }}
+    directory={{ dump_dir }}
+    dumpfile={{ dump_file_name }}
+    remap_schema={{ source_schema }}:{{ target_schema }}
+    transform=segment_attributes:n
+    logfile=import_{{ target_schema }}_{{ ansible_date_time.epoch }}.log
+    parallel={{ parallel_threads }}
+  args:
+    executable: "{{ oracle_home }}/bin/impdp"
+  environment:
+    ORACLE_HOME: "{{ oracle_home }}"
+  become_user: "{{ oracle_user }}"
+  register: import_result
+  failed_when: import_result.rc != 0
+
+- name: Check import result
+  debug:
+    msg: "Schema import completed successfully"
+  when: import_result.rc == 0

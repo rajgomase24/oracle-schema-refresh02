@@ -1,0 +1,23 @@
+- name: Export source schema
+  command: >
+    expdp {{ db_user }}/{{ db_password }}@{{ source_db_host }}:{{ source_db_port }}/{{ source_db_sid }}
+    schemas={{ source_schema }}
+    directory={{ dump_dir }}
+    dumpfile={{ dump_file_name }}
+    logfile=export_{{ source_schema }}_{{ ansible_date_time.epoch }}.log
+    parallel={{ parallel_threads }}
+    compression=ALL
+  args:
+    executable: "{{ oracle_home }}/bin/expdp"
+  environment:
+    ORACLE_HOME: "{{ oracle_home }}"
+  become_user: "{{ oracle_user }}"
+  register: export_result
+  failed_when: 
+    - export_result.rc != 0
+    - "'already exists' not in export_result.stderr"
+
+- name: Check export result
+  debug:
+    msg: "Schema export completed successfully"
+  when: export_result.rc == 0

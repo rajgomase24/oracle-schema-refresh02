@@ -1,0 +1,43 @@
+- name: Validate parameters
+  fail:
+    msg: "{{ item }} is required"
+  when: item | default('') == ''
+  loop:
+    - source_db_host
+    - target_db_host
+    - source_schema
+    - target_schema
+    - db_user
+    - db_password
+    - sys_password
+
+- name: Create log directory
+  file:
+    path: "{{ log_dir }}"
+    state: directory
+    mode: '0755'
+  delegate_to: localhost
+
+- include_tasks: export_schema.yml
+  when: refresh_type != "import_only"
+
+- include_tasks: transfer_dump.yml
+  when: 
+    - refresh_type != "import_only"
+    - source_db_host != target_db_host
+
+- include_tasks: drop_target_schema.yml
+  when: refresh_type != "export_only"
+
+- include_tasks: import_schema.yml
+  when: refresh_type != "export_only"
+
+- name: Validate refresh operation
+  script: "validate_refresh.sql"
+  args:
+    executable: sqlplus
+  environment:
+    ORACLE_HOME: "{{ oracle_home }}"
+    ORACLE_SID: "{{ target_db_sid }}"
+  become_user: "{{ oracle_user }}"
+  when: validation_required | bool

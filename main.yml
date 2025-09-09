@@ -1,0 +1,12 @@
+- name: Refresh Oracle Schema
+  hosts: localhost
+  gather_facts: true
+  vars:
+    refresh_type: "full"  # Options: full, export_only, import_only
+    validation_required: true
+    oracle_home: "/u01/app/oracle/product/19c/dbhome_1"
+    oracle_user: "oracle"
+    oracle_data_pump_dir: "/u01/app/oracle/admin/{{ target_db_sid }}/dpdump"
+  
+  roles:
+    - oracle_schema_refresh
