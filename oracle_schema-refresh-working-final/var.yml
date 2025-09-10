@@ -1,0 +1,36 @@
+---
+# Oracle Schema Refresh Variables
+# This file contains all configurable parameters for the schema refresh
+
+# Source Database Configuration
+source_db_sid: "nsqual"
+source_db_service: "nsqual01"
+source_schema: "AUTOMATIONTEST"
+
+# Target Database Configuration
+target_db_sid: "nsqual"
+target_db_service: "nsqual01"
+target_schema: "AUTOMATIONTEST"
+
+# Database Credentials
+db_user: "testdba"
+# Note: Passwords should be stored in Ansible Vault for security
+db_password: "{{ vault_db_password }}"
+sys_password: "{{ vault_sys_password }}"
+
+# Refresh Options
+refresh_type: "full"  # Options: full, export_only, import_only
+validation_required: true
+
+# Data Pump Settings
+dump_file_name: "automationtest_schema_refresh.dmp"
+parallel_threads: 4
+
+# Oracle Environment
+oracle_home: "/u01/app/oracle/product/19c/dbhome_1"
+oracle_data_pump_dir: "/u01/app/oracle/admin/{{ target_db_sid }}/dpdump"
+
+# Logging
+log_dir: "/tmp/refresh_logs"
+
+

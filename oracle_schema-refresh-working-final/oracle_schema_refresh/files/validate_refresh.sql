@@ -1,0 +1,118 @@
+SET SERVEROUTPUT ON
+SET FEEDBACK OFF
+SET VERIFY OFF
+SET LINESIZE 200
+SET PAGESIZE 0
+
+DEFINE schema_name = &1
+
+DECLARE
+    v_object_count NUMBER;
+    v_table_count NUMBER;
+    v_index_count NUMBER;
+    v_refresh_date VARCHAR2(100);
+    v_schema_owner VARCHAR2(30);
+    v_status VARCHAR2(20) := 'SUCCESS';
+    v_message VARCHAR2(4000);
+BEGIN
+    DBMS_OUTPUT.PUT_LINE('Starting validation of schema refresh for schema: ' || '&schema_name');
+    DBMS_OUTPUT.PUT_LINE('==========================================================');
+
+    -- Check if schema exists
+    SELECT COUNT(*) INTO v_schema_owner
+    FROM dba_users 
+    WHERE username = UPPER('&schema_name');
+    
+    IF v_schema_owner = 0 THEN
+        v_status := 'FAILURE';
+        v_message := v_message || 'Schema ' || '&schema_name' || ' does not exist. ';
+    ELSE
+        DBMS_OUTPUT.PUT_LINE('✓ Schema ' || '&schema_name' || ' exists');
+    END IF;
+
+    -- Check object count
+    SELECT COUNT(*) INTO v_object_count
+    FROM all_objects 
+    WHERE owner = UPPER('&schema_name');
+    
+    IF v_object_count = 0 THEN
+        v_status := 'FAILURE';
+        v_message := v_message || 'Schema ' || '&schema_name' || ' has no objects. ';
+    ELSE
+        DBMS_OUTPUT.PUT_LINE('✓ Schema ' || '&schema_name' || ' has ' || v_object_count || ' objects');
+    END IF;
+
+    -- Check table count
+    SELECT COUNT(*) INTO v_table_count
+    FROM all_tables 
+    WHERE owner = UPPER('&schema_name');
+    
+    DBMS_OUTPUT.PUT_LINE('✓ Schema ' || '&schema_name' || ' has ' || v_table_count || ' tables');
+
+    -- Check index count
+    SELECT COUNT(*) INTO v_index_count
+    FROM all_indexes 
+    WHERE owner = UPPER('&schema_name');
+    
+    DBMS_OUTPUT.PUT_LINE('✓ Schema ' || '&schema_name' || ' has ' || v_index_count || ' indexes');
+
+    -- Try to get refresh timestamp from a common metadata table (if exists)
+    BEGIN
+        SELECT TO_CHAR(MAX(last_ddl_time), 'YYYY-MM-DD HH24:MI:SS')
+        INTO v_refresh_date
+        FROM all_objects 
+        WHERE owner = UPPER('&schema_name')
+        AND object_type IN ('TABLE', 'INDEX');
+        
+        DBMS_OUTPUT.PUT_LINE('✓ Latest object refresh: ' || v_refresh_date);
+    EXCEPTION
+        WHEN OTHERS THEN
+            NULL; -- Ignore if this fails
+    END;
+
+    -- Check for invalid objects
+    DECLARE
+        v_invalid_count NUMBER;
+    BEGIN
+        SELECT COUNT(*)
+        INTO v_invalid_count
+        FROM all_objects
+        WHERE owner = UPPER('&schema_name')
+        AND status != 'VALID';
+        
+        IF v_invalid_count > 0 THEN
+            v_status := 'WARNING';
+            v_message := v_message || 'Found ' || v_invalid_count || ' invalid objects. ';
+            DBMS_OUTPUT.PUT_LINE('⚠ Found ' || v_invalid_count || ' invalid objects');
+        ELSE
+            DBMS_OUTPUT.PUT_LINE('✓ All objects are valid');
+        END IF;
+    EXCEPTION
+        WHEN OTHERS THEN
+            NULL; -- Ignore if this fails
+    END;
+
+    DBMS_OUTPUT.PUT_LINE('==========================================================');
+    DBMS_OUTPUT.PUT_LINE('Validation status: ' || v_status);
+    
+    IF v_message IS NOT NULL THEN
+        DBMS_OUTPUT.PUT_LINE('Message: ' || v_message);
+    END IF;
+    
+    -- Return appropriate exit code based on status
+    IF v_status = 'FAILURE' THEN
+        RAISE_APPLICATION_ERROR(-20001, 'Validation failed: ' || v_message);
+    ELSIF v_status = 'WARNING' THEN
+        DBMS_OUTPUT.PUT_LINE('Validation completed with warnings');
+    ELSE
+        DBMS_OUTPUT.PUT_LINE('Validation completed successfully');
+    END IF;
+    
+EXCEPTION
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('ERROR: Unexpected error during validation: ' || SQLERRM);
+        RAISE;
+END;
+/
+EXIT;
+

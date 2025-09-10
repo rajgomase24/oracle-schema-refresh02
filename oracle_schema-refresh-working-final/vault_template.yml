@@ -1,0 +1,25 @@
+# =============================================================================
+# Vault File - Sensitive Configuration Variables
+# =============================================================================
+# This file should be encrypted using ansible-vault encrypt vault.yml
+# 
+# Example command to encrypt:
+# ansible-vault encrypt vault.yml
+#
+# Example command to edit:
+# ansible-vault edit vault.yml
+# =============================================================================
+
+# Oracle Database Credentials
+vault_db_password: "your_secure_database_password"
+vault_sys_password: "your_secure_sys_password"
+
+# AWS S3 Credentials (Optional - use IAM roles when possible)
+vault_s3_access_key_id: "AKIA_YOUR_ACCESS_KEY_ID"
+vault_s3_secret_access_key: "your_secret_access_key_here"
+vault_s3_session_token: ""  # For temporary credentials
+
+# Additional secure variables can be added here
+# Examples:
+# vault_oracle_wallet_password: "wallet_password"
+# vault_monitoring_api_key: "monitoring_key"

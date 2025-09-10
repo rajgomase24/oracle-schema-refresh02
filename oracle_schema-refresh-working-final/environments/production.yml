@@ -1,0 +1,74 @@
+---
+# =============================================================================
+# Production Environment Configuration
+# =============================================================================
+# This file contains environment-specific overrides for production
+# Can be used with: ansible-playbook main.yml -e @environments/production.yml
+
+# Environment identification
+environment_name: "production"
+
+# Database connections for production
+source_db_host: "prod-oracle-01.company.com"
+target_db_host: "prod-oracle-02.company.com"
+source_db_service: "proddb01"
+target_db_service: "proddb02"
+
+# Production schema mapping
+source_schema: "MASTER_DATA"
+target_schema: "REPORTING_SCHEMA"
+
+# Production safety settings
+transfer_method: "s3"  # Use S3 for production (better reliability and audit trail)
+backup_before_drop: true
+cleanup_dump_files: false
+detailed_logging: true
+schema_existence_check: "strict"
+
+# S3 configuration for production
+s3_bucket_name: "oracle-dumps-prod"
+s3_bucket_region: "us-east-1"
+s3_storage_class: "STANDARD_IA"
+s3_cleanup_after_success: false  # Keep files for audit/compliance
+s3_cleanup_old_objects: true
+s3_cleanup_days_threshold: 90
+s3_enable_lifecycle: true
+s3_lifecycle_days_to_ia: 30
+s3_lifecycle_days_to_glacier: 90
+s3_lifecycle_days_to_delete: 2555  # 7 years for compliance
+
+# Production S3 security
+s3_server_side_encryption: "AES256"
+s3_use_iam_role: true  # Use IAM roles in production
+
+# Enable fallback for critical operations
+enable_transfer_fallback: true
+fallback_transfer_method: "direct"
+
+# Strict validation for production
+continue_on_validation_warnings: false
+min_object_count_threshold: 100
+
+# Production performance settings
+parallel_threads: 8
+transfer_retry_count: 5
+validation_timeout: 600
+datapump_operation_timeout: 14400  # 4 hours
+
+# Production safety features
+enable_preflight_checks: true
+development_mode: false
+test_mode: false
+
+# Production logging and backup
+log_dir: "/var/log/oracle/refresh_logs"
+backup_directory: "/backup/oracle/schema_backups"
+
+# Production-specific Oracle settings
+dump_compression: "ALL"
+oracle_version: "19c"
+use_oracle_12c_features: true
+
+# Advanced production settings
+session_kill_timeout: 120
+transfer_retry_delay: 30

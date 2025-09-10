@@ -1,0 +1,134 @@
+---
+# =============================================================================
+# Drop Target Schema Task
+# =============================================================================
+
+- name: Check if target schema exists before drop
+  shell: |
+    {{ oracle_home }}/bin/sqlplus -s {{ db_user }}/{{ db_password }}@{{ target_db_host }}:{{ target_db_port }}/{{ target_db_service }} <<EOF
+    SET HEADING OFF FEEDBACK OFF PAGESIZE 0 VERIFY OFF
+    SELECT COUNT(*) FROM dba_users WHERE username = UPPER('{{ target_schema }}');
+    EXIT;
+    EOF
+  register: target_schema_check
+  become_user: "{{ oracle_user }}"
+  environment: "{{ oracle_env_vars }}"
+  when: enable_preflight_checks | bool
+
+- name: Set target_schema_exists fact
+  set_fact:
+    target_schema_exists: "{{ target_schema_check.stdout | trim | int > 0 }}"
+  when: enable_preflight_checks | bool
+
+- name: Create backup of target schema if requested
+  block:
+    - name: Create backup directory
+      file:
+        path: "{{ backup_directory }}"
+        state: directory
+        mode: "{{ log_dir_mode }}"
+        owner: "{{ oracle_user }}"
+        group: "{{ oracle_user }}"
+      become: true
+
+    - name: Export target schema for backup
+      shell: >
+        {{ oracle_home }}/bin/expdp {{ db_user }}/{{ db_password }}@{{ target_db_host }}:{{ target_db_port }}/{{ target_db_service }}
+        schemas={{ target_schema }}
+        directory={{ dump_dir }}
+        dumpfile=backup_{{ target_schema }}_{{ ansible_date_time.epoch }}.dmp
+        logfile=backup_{{ target_schema }}_{{ ansible_date_time.epoch }}.log
+        parallel={{ parallel_threads }}
+        compression={{ dump_compression }}
+      environment: "{{ oracle_env_vars }}"
+      become_user: "{{ oracle_user }}"
+      register: backup_result
+      when: target_schema_exists | default(true)
+
+  when: 
+    - backup_before_drop | bool
+    - enable_preflight_checks | bool
+    - target_schema_exists | default(true)
+
+- name: Kill sessions and drop target schema
+  shell: |
+    #!{{ shell_executable }}
+    {{ oracle_home }}/bin/sqlplus -s /nolog <<EOF
+    CONNECT {{ db_user }}/{{ db_password }}@{{ target_db_host }}:{{ target_db_port }}/{{ target_db_service }}
+
+    -- Kill active sessions for {{ target_schema }}
+    BEGIN
+      FOR sess IN (
+        SELECT sid, serial# 
+        FROM v\$session 
+        WHERE username = UPPER('{{ target_schema }}')
+      ) LOOP
+        BEGIN
+          EXECUTE IMMEDIATE 'ALTER SYSTEM KILL SESSION ''' || sess.sid || ',' || sess.serial# || ''' IMMEDIATE';
+        EXCEPTION
+          WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('Warning: Could not kill session ' || sess.sid || ',' || sess.serial#);
+        END;
+      END LOOP;
+    END;
+    /
+
+    -- Drop schema if it exists
+    DECLARE
+      user_exists NUMBER;
+    BEGIN
+      SELECT COUNT(*) INTO user_exists FROM dba_users WHERE username = UPPER('{{ target_schema }}');
+      IF user_exists > 0 THEN
+        EXECUTE IMMEDIATE 'DROP USER {{ target_schema }} CASCADE';
+        DBMS_OUTPUT.PUT_LINE('Schema {{ target_schema }} dropped successfully');
+      ELSE
+        DBMS_OUTPUT.PUT_LINE('Schema {{ target_schema }} does not exist - skipping drop');
+      END IF;
+    EXCEPTION
+      WHEN OTHERS THEN
+        IF SQLCODE = -1918 THEN
+          DBMS_OUTPUT.PUT_LINE('Schema {{ target_schema }} does not exist - skipping drop');
+        ELSE
+          RAISE;
+        END IF;
+    END;
+    /
+    
+    EXIT;
+    EOF
+  args:
+    executable: "{{ shell_executable }}"
+  environment: "{{ oracle_env_vars }}"
+  become_user: "{{ oracle_user }}"
+  register: drop_result
+  timeout: "{{ session_kill_timeout }}"
+  failed_when:
+    - drop_result.rc != 0
+    - "'does not exist' not in drop_result.stderr"
+    - "'ORA-01918' not in drop_result.stderr"
+
+- name: Log drop operation result
+  debug:
+    msg: |
+      Target schema drop operation completed:
+      {% if drop_result.stdout_lines is defined %}
+      {{ drop_result.stdout_lines | join('\n') }}
+      {% endif %}
+  when: detailed_logging | bool
+
+- name: Verify schema drop was successful
+  shell: |
+    {{ oracle_home }}/bin/sqlplus -s {{ db_user }}/{{ db_password }}@{{ target_db_host }}:{{ target_db_port }}/{{ target_db_service }} <<EOF
+    SET HEADING OFF FEEDBACK OFF PAGESIZE 0 VERIFY OFF
+    SELECT COUNT(*) FROM dba_users WHERE username = UPPER('{{ target_schema }}');
+    EXIT;
+    EOF
+  register: drop_verification
+  become_user: "{{ oracle_user }}"
+  environment: "{{ oracle_env_vars }}"
+  when: enable_preflight_checks | bool
+
+- name: Confirm schema drop
+  debug:
+    msg: "✅ Schema {{ target_schema }} successfully {{ 'dropped' if (drop_verification.stdout | trim | int == 0) else 'still exists (may need manual intervention)' }}"
+  when: enable_preflight_checks | bool

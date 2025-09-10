@@ -1,0 +1,139 @@
+# =============================================================================
+# Oracle Schema Refresh - Default Variables
+# =============================================================================
+# This file contains default values that can be overridden by:
+# 1. vars.yml in the playbook directory
+# 2. Ansible Tower job template variables
+# 3. Extra variables passed to ansible-playbook
+# 4. Host or group variables
+# =============================================================================
+
+# =============================================================================
+# DATABASE CONNECTION CONFIGURATION
+# =============================================================================
+
+# Source database connection parameters
+source_db_host: "{{ inventory_hostname }}"
+source_db_port: 1521
+source_db_sid: "nsqual"
+source_db_service: "nsqual01"
+source_schema: "AUTOMATIONTEST"
+
+# Target database connection parameters
+target_db_host: "{{ inventory_hostname }}"
+target_db_port: 1521
+target_db_sid: "nsqual"
+target_db_service: "nsqual01"
+target_schema: "AUTOMATIONTEST"
+
+# =============================================================================
+# DATABASE CREDENTIALS
+# =============================================================================
+
+# Database credentials
+db_user: "testdba"
+db_password: "{{ vault_db_password | default('required_password') }}"
+sys_password: "{{ vault_sys_password | default('required_sys_password') }}"
+
+# =============================================================================
+# ORACLE ENVIRONMENT CONFIGURATION
+# =============================================================================
+
+# Oracle installation and user settings
+oracle_home: "/u01/app/oracle/product/19c/dbhome_1"
+oracle_user: "oracle"
+
+# =============================================================================
+# REFRESH OPERATION SETTINGS
+# =============================================================================
+
+# Refresh type: 'full', 'export_only', 'import_only'
+refresh_type: "full"
+
+# Enable post-refresh validation
+validation_required: true
+
+# =============================================================================
+# DATA PUMP CONFIGURATION
+# =============================================================================
+
+# Data Pump parameters
+dump_dir: "DATA_PUMP_DIR"
+dump_file_name: "automationtest_schema_refresh.dmp"
+parallel_threads: 4
+dump_compression: "ALL"
+dump_transform_settings: "segment_attributes:n"
+
+# Physical filesystem path for Data Pump operations
+oracle_data_pump_dir: "/u01/app/oracle/admin/{{ target_db_sid }}/dpdump"
+
+# =============================================================================
+# SYSTEM CONFIGURATION
+# =============================================================================
+
+# Shell executable for complex operations
+shell_executable: "/bin/bash"
+
+# =============================================================================
+# LOGGING CONFIGURATION
+# =============================================================================
+
+# Logging parameters
+log_dir: "/tmp/refresh_logs"
+log_dir_mode: "0755"
+detailed_logging: true
+
+# Log file naming patterns
+export_log_pattern: "export_{{ source_schema }}_{{ ansible_date_time.epoch }}.log"
+import_log_pattern: "import_{{ target_schema }}_{{ ansible_date_time.epoch }}.log"
+
+# =============================================================================
+# ERROR HANDLING AND RETRY CONFIGURATION
+# =============================================================================
+
+# Retry settings
+transfer_retry_count: 3
+transfer_retry_delay: 10
+session_kill_timeout: 60
+datapump_operation_timeout: 7200
+validation_timeout: 300
+
+# =============================================================================
+# VALIDATION SETTINGS
+# =============================================================================
+
+# Validation configuration
+min_object_count_threshold: 1
+continue_on_validation_warnings: true
+schema_existence_check: "warn"
+
+# =============================================================================
+# ADVANCED SETTINGS
+# =============================================================================
+
+# Oracle environment variables
+oracle_env_vars:
+  ORACLE_HOME: "{{ oracle_home }}"
+  ORACLE_SID: "{{ source_db_sid }}"
+  LD_LIBRARY_PATH: "{{ oracle_home }}/lib"
+  PATH: "{{ oracle_home }}/bin:{{ ansible_env.PATH }}"
+
+# Feature flags
+enable_preflight_checks: true
+cleanup_dump_files: false
+backup_before_drop: false
+backup_directory: "/tmp/schema_backups"
+
+# Development and testing
+development_mode: false
+test_mode: false
+dry_run: false
+
+# Platform and version
+oracle_version: "19c"
+use_oracle_12c_features: true
+target_platform: "linux"
+
+# Ansible Tower integration
+environment_name: "{{ tower_environment | default('development') }}"
+allow_tower_override: true

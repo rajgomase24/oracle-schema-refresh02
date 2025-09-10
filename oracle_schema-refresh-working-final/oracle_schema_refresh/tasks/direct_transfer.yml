@@ -1,0 +1,155 @@
+---
+# =============================================================================
+# Direct Server-to-Server Transfer (Original rsync method)
+# =============================================================================
+
+- name: Direct transfer pre-checks
+  block:
+    - name: Check target directory exists and is writable
+      block:
+        - name: Ensure target dump directory exists
+          file:
+            path: "{{ oracle_data_pump_dir }}"
+            state: directory
+            owner: "{{ oracle_user }}"
+            group: "{{ oracle_user }}"
+            mode: "0755"
+          delegate_to: "{{ target_db_host }}"
+          become: true
+
+        - name: Check available space on target
+          shell: df -h {{ oracle_data_pump_dir }} | tail -1 | awk '{print $4}'
+          register: target_available_space
+          delegate_to: "{{ target_db_host }}"
+          become_user: "{{ oracle_user }}"
+          when: enable_preflight_checks | bool
+
+        - name: Display target space information
+          debug:
+            msg: |
+              💾 Target Storage Information:
+              Available Space: {{ target_available_space.stdout | default('Unknown') }}
+              File Size: {{ (source_dump_file_stat.stat.size / 1024 / 1024) | round(2) }} MB
+          when: 
+            - enable_preflight_checks | bool
+            - target_available_space is defined
+
+      when: enable_preflight_checks | bool
+
+- name: Execute direct file transfer
+  block:
+    - name: Transfer dump file using rsync
+      synchronize:
+        src: "{{ oracle_data_pump_dir }}/{{ dump_file_name }}"
+        dest: "{{ oracle_data_pump_dir }}/{{ dump_file_name }}"
+        mode: pull
+        owner: "{{ oracle_user }}"
+        group: "{{ oracle_user }}"
+        perms: true
+        times: true
+        checksum: true
+        rsync_opts:
+          - "--progress"
+          - "--stats"
+          - "--human-readable"
+      delegate_to: "{{ target_db_host }}"
+      become_user: "{{ oracle_user }}"
+      register: direct_transfer_result
+      retries: "{{ transfer_retry_count }}"
+      delay: "{{ transfer_retry_delay }}"
+
+    - name: Log direct transfer completion
+      debug:
+        msg: |
+          ✅ Direct file transfer completed successfully!
+          Source: {{ source_db_host }}:{{ oracle_data_pump_dir }}/{{ dump_file_name }}
+          Target: {{ target_db_host }}:{{ oracle_data_pump_dir }}/{{ dump_file_name }}
+          Method: rsync (direct)
+
+  rescue:
+    - name: Handle direct transfer failure
+      block:
+        - name: Log transfer failure
+          debug:
+            msg: |
+              ❌ Direct file transfer failed!
+              Error: {{ direct_transfer_result.msg | default('Unknown error') }}
+              
+              Troubleshooting Steps:
+              1. Check network connectivity between {{ source_db_host }} and {{ target_db_host }}
+              2. Verify SSH access and key authentication
+              3. Check disk space on target server
+              4. Ensure {{ oracle_user }} has proper permissions on both servers
+              5. Verify rsync is installed and accessible
+
+        - name: Attempt S3 fallback if enabled
+          block:
+            - name: Log fallback attempt
+              debug:
+                msg: "🔄 Direct transfer failed. Attempting S3 fallback..."
+
+            - name: Set transfer method to S3 for fallback
+              set_fact:
+                original_transfer_method: "{{ transfer_method }}"
+                transfer_method: "s3"
+
+            - name: Execute S3 fallback transfer
+              include_tasks: s3_transfer.yml
+
+            - name: Restore original transfer method
+              set_fact:
+                transfer_method: "{{ original_transfer_method }}"
+
+          when: 
+            - enable_transfer_fallback | bool
+            - fallback_transfer_method == 's3'
+            - s3_bucket_name is defined
+            - s3_bucket_name != ''
+
+        - name: Fail if no fallback available
+          fail:
+            msg: |
+              ❌ Direct transfer failed and no fallback available!
+              
+              Original error: {{ direct_transfer_result.msg | default('Unknown error') }}
+              
+              Please check network connectivity and permissions, then retry.
+          when: not (enable_transfer_fallback | bool) or fallback_transfer_method != 's3'
+
+- name: Verify direct transfer integrity
+  block:
+    - name: Check transferred file exists
+      stat:
+        path: "{{ oracle_data_pump_dir }}/{{ dump_file_name }}"
+      register: direct_transferred_dump_file_stat
+      delegate_to: "{{ target_db_host }}"
+      become_user: "{{ oracle_user }}"
+
+    - name: Compare file sizes for integrity check
+      debug:
+        msg: |
+          📊 Direct Transfer Integrity Check:
+          Source Size: {{ (source_dump_file_stat.stat.size / 1024 / 1024) | round(2) }} MB
+          Target Size: {{ (direct_transferred_dump_file_stat.stat.size / 1024 / 1024) | round(2) }} MB
+          Match: {{ 'Yes' if source_dump_file_stat.stat.size == direct_transferred_dump_file_stat.stat.size else 'No' }}
+
+    - name: Fail if file sizes don't match
+      fail:
+        msg: |
+          ❌ Direct transfer integrity check failed!
+          
+          Source file size: {{ source_dump_file_stat.stat.size }} bytes
+          Target file size: {{ direct_transferred_dump_file_stat.stat.size }} bytes
+          
+          The file may have been corrupted during transfer. Please retry the operation.
+      when: source_dump_file_stat.stat.size != direct_transferred_dump_file_stat.stat.size
+
+    - name: Log successful direct transfer verification
+      lineinfile:
+        path: "{{ log_dir }}/transfer_operations.log"
+        line: "{{ ansible_date_time.iso8601 }} - Direct Transfer verified: {{ dump_file_name }} ({{ (direct_transferred_dump_file_stat.stat.size / 1024 / 1024) | round(2) }} MB) {{ source_db_host }} -> {{ target_db_host }}"
+        create: true
+        owner: "{{ oracle_user }}"
+        group: "{{ oracle_user }}"
+      delegate_to: localhost
+      when: detailed_logging | bool

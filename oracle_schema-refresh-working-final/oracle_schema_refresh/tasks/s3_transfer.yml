@@ -1,0 +1,385 @@
+---
+# =============================================================================
+# S3 Transfer Operations for Oracle Dump Files
+# =============================================================================
+
+- name: Display S3 transfer operation details
+  debug:
+    msg: |
+      🌐 S3 Transfer Information:
+      Method: {{ transfer_method }}
+      Bucket: {{ s3_bucket_name }}
+      Region: {{ s3_bucket_region }}
+      Object Key: {{ s3_object_key_pattern }}
+      Storage Class: {{ s3_storage_class }}
+      Encryption: {{ s3_server_side_encryption }}
+      File: {{ dump_file_name }}
+      Size: {{ (source_dump_file_stat.stat.size / 1024 / 1024) | round(2) }} MB
+  when: 
+    - detailed_logging | bool
+    - transfer_method in ['s3', 'hybrid']
+
+# =============================================================================
+# S3 Environment Setup and Validation
+# =============================================================================
+
+- name: Validate S3 configuration
+  block:
+    - name: Check required S3 parameters
+      fail:
+        msg: "Required S3 parameter '{{ item }}' is not defined"
+      when: vars[item] | default('') == ''
+      loop:
+        - s3_bucket_name
+        - s3_bucket_region
+
+    - name: Validate S3 credentials or IAM role
+      fail:
+        msg: |
+          S3 authentication not properly configured. Either:
+          1. Set s3_use_iam_role: true (recommended for EC2 instances), or
+          2. Provide vault_s3_access_key_id and vault_s3_secret_access_key in vault
+      when: 
+        - not s3_use_iam_role
+        - (s3_access_key_id == '' or s3_secret_access_key == '')
+
+  when: transfer_method in ['s3', 'hybrid']
+  tags: ['s3', 'validation']
+
+- name: Install AWS CLI if not present
+  block:
+    - name: Check if AWS CLI is installed
+      command: aws --version
+      register: aws_cli_check
+      failed_when: false
+      changed_when: false
+
+    - name: Install AWS CLI (RHEL/CentOS/Oracle Linux)
+      block:
+        - name: Download AWS CLI installer
+          get_url:
+            url: "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip"
+            dest: "/tmp/awscliv2.zip"
+            mode: '0644'
+          become: true
+
+        - name: Unzip AWS CLI installer
+          unarchive:
+            src: "/tmp/awscliv2.zip"
+            dest: "/tmp"
+            remote_src: true
+          become: true
+
+        - name: Install AWS CLI
+          command: /tmp/aws/install
+          become: true
+
+        - name: Cleanup installer files
+          file:
+            path: "{{ item }}"
+            state: absent
+          loop:
+            - "/tmp/awscliv2.zip"
+            - "/tmp/aws"
+          become: true
+
+      when: aws_cli_check.rc != 0
+
+  when: transfer_method in ['s3', 'hybrid']
+  tags: ['s3', 'setup']
+
+- name: Configure AWS credentials and region
+  block:
+    - name: Set AWS credentials environment (when using access keys)
+      set_fact:
+        aws_environment:
+          AWS_ACCESS_KEY_ID: "{{ s3_access_key_id }}"
+          AWS_SECRET_ACCESS_KEY: "{{ s3_secret_access_key }}"
+          AWS_SESSION_TOKEN: "{{ s3_session_token }}"
+          AWS_DEFAULT_REGION: "{{ s3_bucket_region }}"
+      when: 
+        - not s3_use_iam_role
+        - s3_access_key_id != ''
+      no_log: true
+
+    - name: Set AWS environment for IAM role
+      set_fact:
+        aws_environment:
+          AWS_DEFAULT_REGION: "{{ s3_bucket_region }}"
+      when: s3_use_iam_role
+
+    - name: Test S3 access
+      shell: aws s3 ls s3://{{ s3_bucket_name }}/ --region {{ s3_bucket_region }}
+      environment: "{{ aws_environment | default({}) }}"
+      register: s3_access_test
+      failed_when: s3_access_test.rc != 0
+      changed_when: false
+
+  when: transfer_method in ['s3', 'hybrid']
+  tags: ['s3', 'validation']
+
+# =============================================================================
+# S3 Bucket Management
+# =============================================================================
+
+- name: Manage S3 bucket and lifecycle policies
+  block:
+    - name: Create S3 bucket if it doesn't exist
+      amazon.aws.s3_bucket:
+        name: "{{ s3_bucket_name }}"
+        region: "{{ s3_bucket_region }}"
+        state: present
+        public_access:
+          block_public_acls: true
+          block_public_policy: true
+          ignore_public_acls: true
+          restrict_public_buckets: true
+      environment: "{{ aws_environment | default({}) }}"
+      delegate_to: localhost
+      run_once: true
+
+    - name: Configure S3 bucket lifecycle policy
+      amazon.aws.s3_lifecycle:
+        name: "{{ s3_bucket_name }}"
+        region: "{{ s3_bucket_region }}"
+        rule_id: "oracle-dump-lifecycle"
+        prefix: "{{ s3_bucket_prefix }}/"
+        status: enabled
+        transitions:
+          - days: "{{ s3_lifecycle_days_to_ia }}"
+            storage_class: "STANDARD_IA"
+          - days: "{{ s3_lifecycle_days_to_glacier }}"
+            storage_class: "GLACIER"
+        expiration_days: "{{ s3_lifecycle_days_to_delete }}"
+      environment: "{{ aws_environment | default({}) }}"
+      delegate_to: localhost
+      run_once: true
+      when: s3_enable_lifecycle | bool
+
+  when: 
+    - transfer_method in ['s3', 'hybrid']
+    - enable_preflight_checks | bool
+  tags: ['s3', 'setup']
+
+# =============================================================================
+# S3 Upload Operations
+# =============================================================================
+
+- name: Upload dump file to S3
+  block:
+    - name: Calculate file checksum before upload
+      stat:
+        path: "{{ oracle_data_pump_dir }}/{{ dump_file_name }}"
+        checksum_algorithm: md5
+      register: source_file_checksum
+      become_user: "{{ oracle_user }}"
+      delegate_to: "{{ source_db_host }}"
+
+    - name: Upload dump file to S3 with multipart
+      shell: |
+        aws s3 cp "{{ oracle_data_pump_dir }}/{{ dump_file_name }}" \
+          "s3://{{ s3_bucket_name }}/{{ s3_object_key_pattern }}" \
+          --region "{{ s3_bucket_region }}" \
+          --storage-class "{{ s3_storage_class }}" \
+          --server-side-encryption "{{ s3_server_side_encryption }}" \
+          {% if s3_kms_key_id != '' %}
+          --ssekms-key-id "{{ s3_kms_key_id }}" \
+          {% endif %}
+          {% if s3_max_bandwidth != '' %}
+          --cli-read-timeout "{{ s3_read_timeout }}" \
+          --cli-connect-timeout "{{ s3_connect_timeout }}" \
+          {% endif %}
+          --metadata "md5checksum={{ source_file_checksum.stat.checksum }},source_host={{ source_db_host }},schema={{ source_schema }},timestamp={{ ansible_date_time.epoch }}"
+      environment: "{{ aws_environment | default({}) }}"
+      become_user: "{{ oracle_user }}"
+      delegate_to: "{{ source_db_host }}"
+      register: s3_upload_result
+      retries: "{{ s3_max_attempts }}"
+      delay: 30
+
+    - name: Tag S3 object for management
+      amazon.aws.s3_object:
+        bucket: "{{ s3_bucket_name }}"
+        object: "{{ s3_object_key_pattern }}"
+        region: "{{ s3_bucket_region }}"
+        mode: put
+        tags: "{{ s3_object_tags }}"
+      environment: "{{ aws_environment | default({}) }}"
+      delegate_to: localhost
+
+    - name: Verify S3 upload
+      shell: |
+        aws s3api head-object \
+          --bucket "{{ s3_bucket_name }}" \
+          --key "{{ s3_object_key_pattern }}" \
+          --region "{{ s3_bucket_region }}" \
+          --query 'ContentLength' \
+          --output text
+      environment: "{{ aws_environment | default({}) }}"
+      register: s3_object_size
+      delegate_to: localhost
+
+    - name: Validate uploaded file size
+      fail:
+        msg: |
+          ❌ S3 upload size mismatch!
+          Local file: {{ source_file_checksum.stat.size }} bytes
+          S3 object: {{ s3_object_size.stdout }} bytes
+      when: source_file_checksum.stat.size | string != s3_object_size.stdout
+
+    - name: Log successful upload
+      debug:
+        msg: |
+          ✅ Successfully uploaded to S3:
+          Object: s3://{{ s3_bucket_name }}/{{ s3_object_key_pattern }}
+          Size: {{ (source_file_checksum.stat.size / 1024 / 1024) | round(2) }} MB
+          MD5: {{ source_file_checksum.stat.checksum }}
+          Storage Class: {{ s3_storage_class }}
+
+  when: 
+    - transfer_method in ['s3', 'hybrid']
+    - source_dump_file_stat.stat.exists
+  tags: ['s3', 'upload']
+
+# =============================================================================
+# S3 Download Operations
+# =============================================================================
+
+- name: Download dump file from S3
+  block:
+    - name: Check if S3 object exists
+      shell: |
+        aws s3api head-object \
+          --bucket "{{ s3_bucket_name }}" \
+          --key "{{ s3_object_key_pattern }}" \
+          --region "{{ s3_bucket_region }}"
+      environment: "{{ aws_environment | default({}) }}"
+      register: s3_object_check
+      failed_when: s3_object_check.rc != 0
+      delegate_to: "{{ target_db_host }}"
+
+    - name: Ensure target directory exists
+      file:
+        path: "{{ oracle_data_pump_dir }}"
+        state: directory
+        owner: "{{ oracle_user }}"
+        group: "{{ oracle_user }}"
+        mode: "0755"
+      become: true
+      delegate_to: "{{ target_db_host }}"
+
+    - name: Download dump file from S3
+      shell: |
+        aws s3 cp "s3://{{ s3_bucket_name }}/{{ s3_object_key_pattern }}" \
+          "{{ oracle_data_pump_dir }}/{{ dump_file_name }}" \
+          --region "{{ s3_bucket_region }}" \
+          {% if s3_max_bandwidth != '' %}
+          --cli-read-timeout "{{ s3_read_timeout }}" \
+          --cli-connect-timeout "{{ s3_connect_timeout }}" \
+          {% endif %}
+      environment: "{{ aws_environment | default({}) }}"
+      become_user: "{{ oracle_user }}"
+      delegate_to: "{{ target_db_host }}"
+      register: s3_download_result
+      retries: "{{ s3_max_attempts }}"
+      delay: 30
+
+    - name: Verify downloaded file
+      stat:
+        path: "{{ oracle_data_pump_dir }}/{{ dump_file_name }}"
+        checksum_algorithm: md5
+      register: downloaded_file_stat
+      become_user: "{{ oracle_user }}"
+      delegate_to: "{{ target_db_host }}"
+
+    - name: Get original file checksum from S3 metadata
+      shell: |
+        aws s3api head-object \
+          --bucket "{{ s3_bucket_name }}" \
+          --key "{{ s3_object_key_pattern }}" \
+          --region "{{ s3_bucket_region }}" \
+          --query 'Metadata.md5checksum' \
+          --output text
+      environment: "{{ aws_environment | default({}) }}"
+      register: s3_original_checksum
+      delegate_to: localhost
+
+    - name: Validate downloaded file integrity
+      fail:
+        msg: |
+          ❌ Downloaded file checksum mismatch!
+          Expected (from S3 metadata): {{ s3_original_checksum.stdout }}
+          Actual (downloaded file): {{ downloaded_file_stat.stat.checksum }}
+      when: 
+        - s3_original_checksum.stdout != 'None'
+        - s3_original_checksum.stdout != downloaded_file_stat.stat.checksum
+
+    - name: Set file permissions
+      file:
+        path: "{{ oracle_data_pump_dir }}/{{ dump_file_name }}"
+        owner: "{{ oracle_user }}"
+        group: "{{ oracle_user }}"
+        mode: "0644"
+      become: true
+      delegate_to: "{{ target_db_host }}"
+
+    - name: Log successful download
+      debug:
+        msg: |
+          ✅ Successfully downloaded from S3:
+          Object: s3://{{ s3_bucket_name }}/{{ s3_object_key_pattern }}
+          Local: {{ oracle_data_pump_dir }}/{{ dump_file_name }}
+          Size: {{ (downloaded_file_stat.stat.size / 1024 / 1024) | round(2) }} MB
+          MD5: {{ downloaded_file_stat.stat.checksum }}
+
+  when: 
+    - transfer_method in ['s3', 'hybrid']
+    - source_db_host != target_db_host or transfer_method == 's3'
+  tags: ['s3', 'download']
+
+# =============================================================================
+# S3 Cleanup Operations
+# =============================================================================
+
+- name: S3 cleanup operations
+  block:
+    - name: Remove old dump files from S3
+      shell: |
+        aws s3api list-objects-v2 \
+          --bucket "{{ s3_bucket_name }}" \
+          --prefix "{{ s3_bucket_prefix }}/{{ environment_name }}/{{ source_schema }}/" \
+          --query "Contents[?LastModified<=\`$(date -d '{{ s3_cleanup_days_threshold }} days ago' -u +%Y-%m-%dT%H:%M:%S.000Z)\`].Key" \
+          --output text | \
+        xargs -r -I {} aws s3 rm "s3://{{ s3_bucket_name }}/{}" --region "{{ s3_bucket_region }}"
+      environment: "{{ aws_environment | default({}) }}"
+      delegate_to: localhost
+      when: s3_cleanup_old_objects | bool
+
+    - name: Remove current S3 object after successful import
+      shell: |
+        aws s3 rm "s3://{{ s3_bucket_name }}/{{ s3_object_key_pattern }}" \
+          --region "{{ s3_bucket_region }}"
+      environment: "{{ aws_environment | default({}) }}"
+      delegate_to: localhost
+      when: 
+        - s3_cleanup_after_success | bool
+        - refresh_type in ['full', 'import_only']
+
+  when: transfer_method in ['s3', 'hybrid']
+  tags: ['s3', 'cleanup']
+
+# =============================================================================
+# Logging and Reporting
+# =============================================================================
+
+- name: Log S3 transfer completion
+  lineinfile:
+    path: "{{ log_dir }}/s3_transfer_operations.log"
+    line: "{{ ansible_date_time.iso8601 }} - S3 Transfer: {{ transfer_method | upper }} - {{ source_schema }} -> s3://{{ s3_bucket_name }}/{{ s3_object_key_pattern }} -> {{ target_db_host }} [SUCCESS]"
+    create: true
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_user }}"
+  delegate_to: localhost
+  when: 
+    - detailed_logging | bool
+    - transfer_method in ['s3', 'hybrid']

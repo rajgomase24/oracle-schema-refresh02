@@ -1,0 +1,51 @@
+---
+# =============================================================================
+# Development Environment Configuration
+# =============================================================================
+# This file contains environment-specific overrides for development
+# Can be used with: ansible-playbook main.yml -e @environments/development.yml
+
+# Environment identification
+environment_name: "development"
+
+# Database connections for development
+source_db_host: "dev-oracle-01.company.com"
+target_db_host: "dev-oracle-01.company.com"
+source_db_service: "devdb01"
+target_db_service: "devdb01"
+
+# Development-specific schemas
+source_schema: "PROD_DATA"
+target_schema: "DEV_SCHEMA"
+
+# Development-friendly settings
+transfer_method: "direct"  # Use direct transfer for dev (faster for local networks)
+backup_before_drop: false
+cleanup_dump_files: true
+detailed_logging: true
+schema_existence_check: "warn"
+
+# S3 configuration for development (if using S3)
+s3_bucket_name: "oracle-dumps-dev"
+s3_bucket_region: "us-east-1"
+s3_storage_class: "STANDARD"
+s3_cleanup_after_success: true
+s3_cleanup_old_objects: true
+s3_cleanup_days_threshold: 7  # Clean up dev files more aggressively
+
+# Relaxed validation for development
+continue_on_validation_warnings: true
+min_object_count_threshold: 1
+
+# Development performance settings
+parallel_threads: 2
+transfer_retry_count: 2
+validation_timeout: 180
+
+# Development features
+enable_preflight_checks: true
+development_mode: true
+test_mode: false
+
+# Development logging
+log_dir: "/tmp/dev_refresh_logs"

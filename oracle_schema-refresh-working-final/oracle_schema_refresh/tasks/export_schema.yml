@@ -1,0 +1,167 @@
+---
+# =============================================================================
+# Export Source Schema Task
+# =============================================================================
+
+- name: Check if source schema exists
+  shell: |
+    {{ oracle_home }}/bin/sqlplus -s {{ db_user }}/{{ db_password }}@{{ source_db_host }}:{{ source_db_port }}/{{ source_db_service }} <<EOF
+    SET HEADING OFF FEEDBACK OFF PAGESIZE 0 VERIFY OFF
+    SELECT COUNT(*) FROM dba_users WHERE username = UPPER('{{ source_schema }}');
+    EXIT;
+    EOF
+  register: schema_check
+  become_user: "{{ oracle_user }}"
+  environment: "{{ oracle_env_vars }}"
+  timeout: "{{ validation_timeout }}"
+
+- name: Set schema_exists fact
+  set_fact:
+    schema_exists: "{{ schema_check.stdout | trim | int > 0 }}"
+
+- name: Handle missing source schema
+  block:
+    - name: Warn if schema does not exist
+      debug:
+        msg: "⚠️ WARNING: Schema '{{ source_schema }}' does not exist in the source database."
+
+    - name: Fail on strict schema check
+      fail:
+        msg: "Source schema '{{ source_schema }}' does not exist and schema_existence_check is set to 'strict'"
+      when: schema_existence_check == 'strict'
+
+    - name: Prompt to continue or abort (interactive mode)
+      pause:
+        prompt: "Schema '{{ source_schema }}' not found. Type 'yes' to continue or press Ctrl+C to abort"
+      when: 
+        - schema_existence_check == 'warn'
+        - not (development_mode | bool)
+        - not (test_mode | bool)
+
+  when: not schema_exists
+
+- name: Check available space in dump directory
+  block:
+    - name: Get dump directory disk usage
+      shell: df -h {{ oracle_data_pump_dir }} | tail -1 | awk '{print $4}'
+      register: available_space
+      become_user: "{{ oracle_user }}"
+
+    - name: Display available space
+      debug:
+        msg: "Available space in dump directory: {{ available_space.stdout }}"
+      when: detailed_logging | bool
+
+  when: 
+    - enable_preflight_checks | bool
+    - schema_exists
+
+- name: Export source schema
+  shell: >
+    {{ oracle_home }}/bin/expdp {{ db_user }}/{{ db_password }}@{{ source_db_host }}:{{ source_db_port }}/{{ source_db_service }}
+    schemas={{ source_schema }}
+    directory={{ dump_dir }}
+    dumpfile={{ dump_file_name }}
+    logfile={{ export_log_pattern }}
+    parallel={{ parallel_threads }}
+    compression={{ dump_compression }}
+    {% if oracle_version == '12c' or use_oracle_12c_features %}
+    cluster=N
+    {% endif %}
+  environment: "{{ oracle_env_vars }}"
+  become_user: "{{ oracle_user }}"
+  register: export_result
+  timeout: "{{ datapump_operation_timeout }}"
+  when: schema_exists
+  failed_when:
+    - export_result.rc != 0
+    - "'already exists' not in export_result.stderr"
+    - "'ORA-39001' not in export_result.stderr"
+
+- name: Handle export with existing dump file
+  block:
+    - name: Remove existing dump file
+      file:
+        path: "{{ oracle_data_pump_dir }}/{{ dump_file_name }}"
+        state: absent
+      become_user: "{{ oracle_user }}"
+
+    - name: Retry export after cleanup
+      shell: >
+        {{ oracle_home }}/bin/expdp {{ db_user }}/{{ db_password }}@{{ source_db_host }}:{{ source_db_port }}/{{ source_db_service }}
+        schemas={{ source_schema }}
+        directory={{ dump_dir }}
+        dumpfile={{ dump_file_name }}
+        logfile={{ export_log_pattern }}
+        parallel={{ parallel_threads }}
+        compression={{ dump_compression }}
+      environment: "{{ oracle_env_vars }}"
+      become_user: "{{ oracle_user }}"
+      register: retry_export_result
+      timeout: "{{ datapump_operation_timeout }}"
+
+  when: 
+    - export_result is defined
+    - export_result.rc != 0
+    - "'already exists' in export_result.stderr or 'ORA-39001' in export_result.stderr"
+
+- name: Verify export file was created
+  stat:
+    path: "{{ oracle_data_pump_dir }}/{{ dump_file_name }}"
+  register: dump_file_stat
+  become_user: "{{ oracle_user }}"
+  when: schema_exists
+
+- name: Check export result and file size
+  block:
+    - name: Display export success message
+      debug:
+        msg: |
+          ✅ Schema export completed successfully!
+          Source Schema: {{ source_schema }}
+          Dump File: {{ dump_file_name }}
+          File Size: {{ (dump_file_stat.stat.size / 1024 / 1024) | round(2) }} MB
+          Location: {{ oracle_data_pump_dir }}
+
+    - name: Log export completion
+      lineinfile:
+        path: "{{ log_dir }}/export_operations.log"
+        line: "{{ ansible_date_time.iso8601 }} - Export completed: {{ source_schema }} -> {{ dump_file_name }} ({{ (dump_file_stat.stat.size / 1024 / 1024) | round(2) }} MB)"
+        create: true
+        owner: "{{ oracle_user }}"
+        group: "{{ oracle_user }}"
+      delegate_to: localhost
+      when: detailed_logging | bool
+
+  when: 
+    - schema_exists
+    - dump_file_stat.stat.exists
+
+- name: Handle export failure
+  fail:
+    msg: |
+      ❌ Schema export failed!
+      
+      Error Details:
+      {% if export_result is defined %}
+      Return Code: {{ export_result.rc }}
+      Error Output: {{ export_result.stderr | default('No error output available') }}
+      {% endif %}
+      
+      Troubleshooting:
+      1. Check Oracle Data Pump directory permissions
+      2. Verify sufficient disk space in {{ oracle_data_pump_dir }}
+      3. Ensure schema {{ source_schema }} exists and is accessible
+      4. Check Oracle database connectivity and credentials
+  when: 
+    - schema_exists
+    - not (dump_file_stat.stat.exists | default(false))
+
+- name: Check export result
+  debug:
+    msg: "✅ Schema export completed successfully"
+  when: 
+    - export_result is defined
+    - export_result.rc is defined
+    - export_result.rc == 0
+

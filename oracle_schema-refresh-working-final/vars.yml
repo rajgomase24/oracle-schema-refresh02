@@ -1,0 +1,317 @@
+---
+# =============================================================================
+# Oracle Schema Refresh - Centralized Configuration Variables
+# =============================================================================
+# This file contains ALL configurable parameters for the Oracle Schema Refresh
+# Ansible role. All values can be overridden via Ansible Tower job templates,
+# surveys, or extra variables.
+# =============================================================================
+
+# =============================================================================
+# DATABASE CONNECTION CONFIGURATION
+# =============================================================================
+
+# Source Database Settings
+source_db_host: "{{ inventory_hostname }}"
+source_db_port: 1521
+source_db_sid: "nsqual"
+source_db_service: "nsqual01"
+source_schema: "AUTOMATIONTEST"
+
+# Target Database Settings  
+target_db_host: "{{ inventory_hostname }}"
+target_db_port: 1521
+target_db_sid: "nsqual"
+target_db_service: "nsqual01"
+target_schema: "AUTOMATIONTEST"
+
+# =============================================================================
+# DATABASE CREDENTIALS
+# =============================================================================
+# Note: For production use, store passwords in Ansible Vault or use
+# Ansible Tower credential types for enhanced security
+
+# Database administrative user
+db_user: "testdba"
+
+# Database passwords (should be stored in vault)
+db_password: "{{ vault_db_password | default('required_password') }}"
+sys_password: "{{ vault_sys_password | default('required_sys_password') }}"
+
+# =============================================================================
+# ORACLE ENVIRONMENT CONFIGURATION  
+# =============================================================================
+
+# Oracle installation paths
+oracle_home: "/u01/app/oracle/product/19c/dbhome_1"
+oracle_user: "oracle"
+
+# Oracle Data Pump directory (Oracle directory object name)
+dump_dir: "DATA_PUMP_DIR"
+
+# Physical filesystem path for Data Pump operations
+oracle_data_pump_dir: "/u01/app/oracle/admin/{{ target_db_sid }}/dpdump"
+
+# =============================================================================
+# REFRESH OPERATION SETTINGS
+# =============================================================================
+
+# Refresh type options: 'full', 'export_only', 'import_only'
+refresh_type: "full"
+
+# Enable/disable post-refresh validation
+validation_required: true
+
+# Data Pump file settings
+dump_file_name: "automationtest_schema_refresh.dmp"
+parallel_threads: 4
+
+# Data Pump compression setting
+dump_compression: "ALL"
+
+# Data Pump transform settings
+dump_transform_settings: "segment_attributes:n"
+
+# =============================================================================
+# TRANSFER METHOD CONFIGURATION
+# =============================================================================
+
+# Transfer method: 'direct', 's3', 'hybrid'
+# - direct: Direct server-to-server transfer (rsync)
+# - s3: Upload to S3 from source, download to target
+# - hybrid: Upload to S3 from source, keep local copy, download to target
+transfer_method: "direct"
+
+# =============================================================================
+# AWS S3 CONFIGURATION
+# =============================================================================
+
+# S3 bucket configuration
+s3_bucket_name: "oracle-dump-files"
+s3_bucket_region: "us-east-1"
+s3_bucket_prefix: "oracle-schema-refresh"
+
+# S3 storage class for cost optimization
+# Options: STANDARD, REDUCED_REDUNDANCY, STANDARD_IA, ONEZONE_IA, GLACIER, DEEP_ARCHIVE
+s3_storage_class: "STANDARD"
+
+# S3 lifecycle management
+s3_enable_lifecycle: false
+s3_lifecycle_days_to_ia: 30
+s3_lifecycle_days_to_glacier: 90
+s3_lifecycle_days_to_delete: 365
+
+# S3 encryption settings
+s3_server_side_encryption: "AES256"
+s3_kms_key_id: ""  # Optional: specify KMS key ID for SSE-KMS
+
+# S3 access configuration
+s3_access_key_id: "{{ vault_s3_access_key_id | default('') }}"
+s3_secret_access_key: "{{ vault_s3_secret_access_key | default('') }}"
+s3_session_token: "{{ vault_s3_session_token | default('') }}"  # For temporary credentials
+
+# Alternative: Use IAM roles (recommended for EC2 instances)
+s3_use_iam_role: true
+s3_iam_role_arn: ""  # Optional: specific role ARN
+
+# S3 transfer optimization
+s3_multipart_threshold: "64MB"
+s3_multipart_chunksize: "16MB"
+s3_max_bandwidth: ""  # Optional: limit bandwidth (e.g., "10MB/s")
+
+# S3 retry and timeout settings
+s3_max_attempts: 3
+s3_retry_mode: "adaptive"
+s3_connect_timeout: 60
+s3_read_timeout: 300
+
+# S3 object tagging for management
+s3_object_tags:
+  Project: "oracle-schema-refresh"
+  Environment: "{{ environment_name }}"
+  CreatedBy: "ansible-automation"
+  RetentionPolicy: "{{ s3_lifecycle_days_to_delete }}days"
+
+# S3 object naming pattern
+s3_object_key_pattern: "{{ s3_bucket_prefix }}/{{ environment_name }}/{{ source_schema }}/{{ ansible_date_time.date }}/{{ dump_file_name }}"
+
+# S3 cleanup settings
+s3_cleanup_after_success: false
+s3_cleanup_old_objects: true
+s3_cleanup_days_threshold: 30
+
+# =============================================================================
+# TRANSFER FALLBACK CONFIGURATION
+# =============================================================================
+
+# Enable fallback to direct transfer if S3 fails
+enable_transfer_fallback: true
+
+# Fallback method when primary transfer fails
+fallback_transfer_method: "direct"
+
+# =============================================================================
+# CLOUD PROVIDER ALTERNATIVES (Future Extension)
+# =============================================================================
+
+# Azure Blob Storage (for future implementation)
+azure_enabled: false
+azure_storage_account: ""
+azure_container_name: "oracle-dumps"
+
+# Google Cloud Storage (for future implementation)
+gcs_enabled: false
+gcs_bucket_name: "oracle-dumps"
+gcs_project_id: ""
+
+# =============================================================================
+# LOGGING AND OUTPUT CONFIGURATION
+# =============================================================================
+
+# Directory for refresh operation logs
+log_dir: "/tmp/refresh_logs"
+
+# Log file permissions
+log_dir_mode: "0755"
+
+# Enable detailed logging
+detailed_logging: true
+
+# Log file naming patterns
+export_log_pattern: "export_{{ source_schema }}_{{ ansible_date_time.epoch }}.log"
+import_log_pattern: "import_{{ target_schema }}_{{ ansible_date_time.epoch }}.log"
+
+# =============================================================================
+# VALIDATION SETTINGS
+# =============================================================================
+
+# Minimum object count threshold for validation
+min_object_count_threshold: 1
+
+# Validation SQL timeout (seconds)
+validation_timeout: 300
+
+# Continue on validation warnings (not errors)
+continue_on_validation_warnings: true
+
+# =============================================================================
+# ERROR HANDLING AND RETRY CONFIGURATION
+# =============================================================================
+
+# Retry settings for network operations
+transfer_retry_count: 3
+transfer_retry_delay: 10
+
+# Session kill timeout
+session_kill_timeout: 60
+
+# Import/Export operation timeout (seconds)
+datapump_operation_timeout: 7200
+
+# =============================================================================
+# ANSIBLE TOWER SPECIFIC SETTINGS
+# =============================================================================
+
+# Survey variables for Tower integration
+# These can be used as survey prompts in Ansible Tower
+
+# Environment selector for Tower surveys
+environment_name: "{{ tower_environment | default('development') }}"
+
+# Allow Tower to override critical settings
+allow_tower_override: true
+
+# Tower job template survey defaults
+tower_survey_defaults:
+  refresh_type: "full"
+  validation_required: true
+  parallel_threads: 4
+
+# =============================================================================
+# ADVANCED CONFIGURATION
+# =============================================================================
+
+# Oracle environment variables
+oracle_env_vars:
+  ORACLE_HOME: "{{ oracle_home }}"
+  ORACLE_SID: "{{ source_db_sid }}"
+  LD_LIBRARY_PATH: "{{ oracle_home }}/lib"
+  PATH: "{{ oracle_home }}/bin:{{ ansible_env.PATH }}"
+
+# SQL*Plus connection timeout
+sqlplus_timeout: 300
+
+# Enable/disable pre-flight checks
+enable_preflight_checks: true
+
+# Schema existence check behavior
+# Options: 'strict' (fail if not exists), 'warn' (warn and continue), 'ignore'
+schema_existence_check: "warn"
+
+# Dump file cleanup after successful import
+cleanup_dump_files: false
+
+# Backup target schema before drop (if exists)
+backup_before_drop: false
+backup_directory: "/tmp/schema_backups"
+
+# =============================================================================
+# COMPATIBILITY SETTINGS
+# =============================================================================
+
+# Oracle version compatibility
+oracle_version: "19c"
+
+# Enable Oracle 12c+ features
+use_oracle_12c_features: true
+
+# Platform-specific settings
+target_platform: "linux"
+
+# =============================================================================
+# DEVELOPMENT AND TESTING OVERRIDES
+# =============================================================================
+
+# Development mode settings (can be overridden for testing)
+development_mode: false
+
+# Test mode settings (enables additional validation)
+test_mode: false
+
+# Dry run mode (validate but don't execute changes)
+dry_run: false
+
+# =============================================================================
+# NOTES FOR ANSIBLE TOWER INTEGRATION
+# =============================================================================
+# 
+# Survey Configuration Recommendations:
+# 
+# 1. Text Variables (required):
+#    - source_schema: "Source Schema Name"
+#    - target_schema: "Target Schema Name"
+#    - source_db_service: "Source Database Service"
+#    - target_db_service: "Target Database Service"
+#
+# 2. Choice Variables:
+#    - refresh_type: ["full", "export_only", "import_only"]
+#    - environment_name: ["development", "testing", "staging", "production"]
+#
+# 3. Boolean Variables:
+#    - validation_required: true/false
+#    - cleanup_dump_files: true/false
+#    - detailed_logging: true/false
+#
+# 4. Integer Variables:
+#    - parallel_threads: (1-8)
+#    - transfer_retry_count: (1-5)
+#
+# 5. Credential Types Required:
+#    - Oracle Database Credential (for db_password, sys_password)
+#    - Machine Credential (for SSH access)
+#
+# 6. Extra Variables Support:
+#    All variables in this file can be overridden via Tower extra variables
+#    Example: {"source_schema": "PROD_SCHEMA", "validation_required": false}
+#
+# =============================================================================

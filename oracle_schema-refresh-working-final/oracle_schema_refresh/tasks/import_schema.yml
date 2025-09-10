@@ -1,0 +1,172 @@
+---
+# =============================================================================
+# Import Schema to Target Task
+# =============================================================================
+
+- name: Verify dump file exists before import
+  stat:
+    path: "{{ oracle_data_pump_dir }}/{{ dump_file_name }}"
+  register: import_dump_file_stat
+  become_user: "{{ oracle_user }}"
+
+- name: Fail if dump file not found
+  fail:
+    msg: |
+      ❌ Dump file not found for import operation!
+      
+      Expected location: {{ oracle_data_pump_dir }}/{{ dump_file_name }}
+      
+      Possible causes:
+      1. Export operation failed or was skipped
+      2. File transfer between servers failed
+      3. Incorrect dump file name or path
+      4. Insufficient permissions to access dump directory
+  when: not import_dump_file_stat.stat.exists
+
+- name: Display dump file information
+  debug:
+    msg: |
+      📁 Dump File Information:
+      File: {{ dump_file_name }}
+      Size: {{ (import_dump_file_stat.stat.size / 1024 / 1024) | round(2) }} MB
+      Location: {{ oracle_data_pump_dir }}
+      Modified: {{ import_dump_file_stat.stat.mtime | int | to_datetime }}
+  when: 
+    - import_dump_file_stat.stat.exists
+    - detailed_logging | bool
+
+- name: Check target database connectivity
+  shell: |
+    {{ oracle_home }}/bin/sqlplus -s {{ db_user }}/{{ db_password }}@{{ target_db_host }}:{{ target_db_port }}/{{ target_db_service }} <<EOF
+    SELECT 'Connection successful' FROM dual;
+    EXIT;
+    EOF
+  register: target_db_check
+  become_user: "{{ oracle_user }}"
+  environment: "{{ oracle_env_vars }}"
+  when: enable_preflight_checks | bool
+
+- name: Import schema to target database
+  shell: >
+    {{ oracle_home }}/bin/impdp {{ db_user }}/{{ db_password }}@{{ target_db_host }}:{{ target_db_port }}/{{ target_db_service }}
+    directory={{ dump_dir }}
+    dumpfile={{ dump_file_name }}
+    remap_schema={{ source_schema }}:{{ target_schema }}
+    transform={{ dump_transform_settings }}
+    logfile={{ import_log_pattern }}
+    parallel={{ parallel_threads }}
+    {% if not dry_run %}
+    table_exists_action=REPLACE
+    {% endif %}
+    {% if oracle_version == '12c' or use_oracle_12c_features %}
+    cluster=N
+    {% endif %}
+  environment: "{{ oracle_env_vars }}"
+  become_user: "{{ oracle_user }}"
+  register: import_result
+  timeout: "{{ datapump_operation_timeout }}"
+  when: 
+    - import_dump_file_stat.stat.exists
+    - not (dry_run | bool)
+  failed_when: 
+    - import_result.rc != 0
+    - "'ORA-39151' not in import_result.stderr"  # Table exists warning
+    - "'ORA-31684' not in import_result.stderr"  # Object already exists warning
+
+- name: Simulate import in dry run mode
+  debug:
+    msg: |
+      🔍 DRY RUN MODE - Import would execute:
+      
+      Command: impdp {{ db_user }}/***@{{ target_db_host }}:{{ target_db_port }}/{{ target_db_service }}
+      Parameters:
+        - directory={{ dump_dir }}
+        - dumpfile={{ dump_file_name }}
+        - remap_schema={{ source_schema }}:{{ target_schema }}
+        - transform={{ dump_transform_settings }}
+        - logfile={{ import_log_pattern }}
+        - parallel={{ parallel_threads }}
+        - table_exists_action=REPLACE
+  when: dry_run | bool
+
+- name: Handle import warnings and errors
+  block:
+    - name: Check for import warnings
+      debug:
+        msg: |
+          ⚠️ Import completed with warnings:
+          {{ import_result.stderr | default('No specific warnings available') }}
+      when: 
+        - import_result.rc == 0
+        - import_result.stderr is defined
+        - import_result.stderr | length > 0
+
+    - name: Process import errors
+      fail:
+        msg: |
+          ❌ Import operation failed!
+          
+          Return Code: {{ import_result.rc }}
+          Error Output: {{ import_result.stderr | default('No error output available') }}
+          
+          Common Solutions:
+          1. Check target database space and connectivity
+          2. Verify dump file integrity
+          3. Ensure proper permissions for {{ oracle_user }}
+          4. Check for conflicting objects in target schema
+      when: 
+        - import_result.rc != 0
+        - "'ORA-39151' not in (import_result.stderr | default(''))"
+        - "'ORA-31684' not in (import_result.stderr | default(''))"
+
+  when: 
+    - import_result is defined
+    - not (dry_run | bool)
+
+- name: Verify import success
+  block:
+    - name: Check imported object count
+      shell: |
+        {{ oracle_home }}/bin/sqlplus -s {{ db_user }}/{{ db_password }}@{{ target_db_host }}:{{ target_db_port }}/{{ target_db_service }} <<EOF
+        SET HEADING OFF FEEDBACK OFF PAGESIZE 0 VERIFY OFF
+        SELECT COUNT(*) FROM all_objects WHERE owner = UPPER('{{ target_schema }}');
+        EXIT;
+        EOF
+      register: imported_object_count
+      become_user: "{{ oracle_user }}"
+      environment: "{{ oracle_env_vars }}"
+
+    - name: Display import results
+      debug:
+        msg: |
+          ✅ Schema import completed successfully!
+          
+          Import Details:
+          - Target Schema: {{ target_schema }}
+          - Objects Imported: {{ imported_object_count.stdout | trim }}
+          - Target Database: {{ target_db_host }}:{{ target_db_port }}/{{ target_db_service }}
+          
+          {% if import_result.stdout_lines is defined %}
+          Import Log Summary:
+          {{ import_result.stdout_lines[-10:] | join('\n') if import_result.stdout_lines | length > 10 else import_result.stdout_lines | join('\n') }}
+          {% endif %}
+
+    - name: Validate minimum object threshold
+      debug:
+        msg: "⚠️ WARNING: Imported object count ({{ imported_object_count.stdout | trim }}) is below minimum threshold ({{ min_object_count_threshold }})"
+      when: (imported_object_count.stdout | trim | int) < (min_object_count_threshold | int)
+
+    - name: Log import completion
+      lineinfile:
+        path: "{{ log_dir }}/import_operations.log"
+        line: "{{ ansible_date_time.iso8601 }} - Import completed: {{ source_schema }} -> {{ target_schema }} ({{ imported_object_count.stdout | trim }} objects)"
+        create: true
+        owner: "{{ oracle_user }}"
+        group: "{{ oracle_user }}"
+      delegate_to: localhost
+      when: detailed_logging | bool
+
+  when: 
+    - import_result is defined
+    - import_result.rc == 0
+    - not (dry_run | bool)

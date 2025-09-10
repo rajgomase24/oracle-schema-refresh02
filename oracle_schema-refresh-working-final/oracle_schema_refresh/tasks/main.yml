@@ -1,0 +1,172 @@
+---
+# =============================================================================
+# Oracle Schema Refresh - Main Task Flow
+# =============================================================================
+
+- name: Display refresh operation summary
+  debug:
+    msg: |
+      Oracle Schema Refresh Operation Summary:
+      ========================================
+      Refresh Type: {{ refresh_type }}
+      Transfer Method: {{ transfer_method | upper }}
+      Source: {{ source_schema }}@{{ source_db_host }}:{{ source_db_port }}/{{ source_db_service }}
+      Target: {{ target_schema }}@{{ target_db_host }}:{{ target_db_port }}/{{ target_db_service }}
+      {% if transfer_method in ['s3', 'hybrid'] %}
+      S3 Bucket: s3://{{ s3_bucket_name }}/{{ s3_bucket_prefix }}
+      S3 Region: {{ s3_bucket_region }}
+      {% endif %}
+      Validation Required: {{ validation_required }}
+      Environment: {{ environment_name }}
+      Parallel Threads: {{ parallel_threads }}
+
+- name: Validate required parameters
+  fail:
+    msg: "Required parameter '{{ item }}' is not defined or is empty"
+  when: vars[item] | default('') == ''
+  loop:
+    - source_db_host
+    - target_db_host
+    - source_schema
+    - target_schema
+    - db_user
+    - db_password
+    - sys_password
+    - oracle_home
+    - oracle_user
+    - transfer_method
+
+- name: Validate refresh_type parameter
+  fail:
+    msg: "refresh_type must be one of: full, export_only, import_only. Current value: {{ refresh_type }}"
+  when: refresh_type not in ['full', 'export_only', 'import_only']
+
+- name: Validate transfer_method parameter
+  fail:
+    msg: "transfer_method must be one of: direct, s3, hybrid. Current value: {{ transfer_method }}"
+  when: transfer_method not in ['direct', 's3', 'hybrid']
+
+- name: Validate Oracle environment
+  stat:
+    path: "{{ oracle_home }}/bin/sqlplus"
+  register: oracle_sqlplus_check
+  failed_when: not oracle_sqlplus_check.stat.exists
+  when: enable_preflight_checks | bool
+
+- name: Create log directory
+  file:
+    path: "{{ log_dir }}"
+    state: directory
+    mode: "{{ log_dir_mode }}"
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_user }}"
+  delegate_to: localhost
+  become: true
+
+- name: Log operation start
+  lineinfile:
+    path: "{{ log_dir }}/refresh_operations.log"
+    line: "{{ ansible_date_time.iso8601 }} - Starting {{ refresh_type }} refresh: {{ source_schema }} -> {{ target_schema }}"
+    create: yes
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_user }}"
+  delegate_to: localhost
+  when: detailed_logging | bool
+
+- name: Execute schema export
+  include_tasks: export_schema.yml
+  when: refresh_type in ['full', 'export_only']
+
+- name: Execute dump file transfer
+  include_tasks: transfer_dump.yml
+  when: 
+    - refresh_type in ['full', 'export_only']
+    - source_db_host != target_db_host or transfer_method in ['s3']
+
+- name: Execute target schema drop
+  include_tasks: drop_target_schema.yml
+  when: refresh_type in ['full', 'import_only']
+
+- name: Execute schema import
+  include_tasks: import_schema.yml
+  when: refresh_type in ['full', 'import_only']
+
+- name: Execute refresh validation
+  block:
+    - name: Run validation script
+      shell: >
+        {{ oracle_home }}/bin/sqlplus -S "{{ db_user }}/{{ db_password }}@{{ target_db_host }}:{{ target_db_port }}/{{ target_db_service }}" 
+        @validate_refresh.sql {{ target_schema }}
+      args:
+        chdir: "{{ role_path }}/files"
+      environment: "{{ oracle_env_vars }}"
+      become_user: "{{ oracle_user }}"
+      register: validation_result
+      timeout: "{{ validation_timeout }}"
+      failed_when: 
+        - "'FAILURE' in validation_result.stdout"
+        - validation_result.rc != 0
+
+    - name: Display validation results
+      debug:
+        msg: "{{ validation_result.stdout_lines }}"
+      when: validation_result.stdout_lines is defined
+
+  rescue:
+    - name: Handle validation failure
+      fail:
+        msg: |
+          Validation failed for schema refresh operation.
+          Error: {{ validation_result.stderr | default('Unknown error') }}
+          Consider checking the target schema and re-running validation.
+      when: not (continue_on_validation_warnings | bool)
+
+    - name: Log validation warning
+      debug:
+        msg: |
+          WARNING: Validation failed but continuing due to continue_on_validation_warnings setting.
+          Error: {{ validation_result.stderr | default('Unknown error') }}
+      when: continue_on_validation_warnings | bool
+
+  when: validation_required | bool
+
+- name: Cleanup operations
+  block:
+    - name: Remove dump files if requested
+      file:
+        path: "{{ oracle_data_pump_dir }}/{{ dump_file_name }}"
+        state: absent
+      become_user: "{{ oracle_user }}"
+      when: cleanup_dump_files | bool
+
+    - name: Log operation completion
+      lineinfile:
+        path: "{{ log_dir }}/refresh_operations.log"
+        line: "{{ ansible_date_time.iso8601 }} - Completed {{ refresh_type }} refresh: {{ source_schema }} -> {{ target_schema }} [SUCCESS]"
+      delegate_to: localhost
+      when: detailed_logging | bool
+
+  rescue:
+    - name: Log operation failure
+      lineinfile:
+        path: "{{ log_dir }}/refresh_operations.log"
+        line: "{{ ansible_date_time.iso8601 }} - Failed {{ refresh_type }} refresh: {{ source_schema }} -> {{ target_schema }} [FAILURE]"
+      delegate_to: localhost
+      when: detailed_logging | bool
+
+- name: Display completion message
+  debug:
+    msg: |
+      ✅ Oracle Schema Refresh Completed Successfully!
+      
+      Operation Details:
+      - Type: {{ refresh_type }}
+      - Source Schema: {{ source_schema }}
+      - Target Schema: {{ target_schema }}
+      - Validation: {{ 'Passed' if validation_required else 'Skipped' }}
+      - Duration: {{ ansible_date_time.epoch | int - operation_start_time | default(ansible_date_time.epoch | int) }} seconds
+      
+      {% if detailed_logging %}
+      Check logs at: {{ log_dir }}/refresh_operations.log
+      {% endif %}  
+

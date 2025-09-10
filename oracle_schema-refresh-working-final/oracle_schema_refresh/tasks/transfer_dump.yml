@@ -1,0 +1,221 @@
+---
+# =============================================================================
+# Transfer Dump File - Multi-Method Support (Direct, S3, Hybrid)
+# =============================================================================
+
+- name: Display transfer operation details
+  debug:
+    msg: |
+      📋 Dump File Transfer Information:
+      Transfer Method: {{ transfer_method | upper }}
+      Source Host: {{ source_db_host }}
+      Target Host: {{ target_db_host }}
+      File: {{ dump_file_name }}
+      Path: {{ oracle_data_pump_dir }}
+      {% if transfer_method in ['s3', 'hybrid'] %}
+      S3 Bucket: s3://{{ s3_bucket_name }}/{{ s3_object_key_pattern }}
+      S3 Region: {{ s3_bucket_region }}
+      S3 Storage Class: {{ s3_storage_class }}
+      {% endif %}
+  when: detailed_logging | bool
+
+- name: Verify source dump file exists before transfer
+  stat:
+    path: "{{ oracle_data_pump_dir }}/{{ dump_file_name }}"
+  register: source_dump_file_stat
+  delegate_to: "{{ source_db_host }}"
+  become_user: "{{ oracle_user }}"
+
+- name: Fail if source dump file not found
+  fail:
+    msg: |
+      ❌ Source dump file not found for transfer!
+      
+      Expected location: {{ oracle_data_pump_dir }}/{{ dump_file_name }}
+      Source host: {{ source_db_host }}
+      
+      Ensure the export operation completed successfully before attempting transfer.
+  when: not source_dump_file_stat.stat.exists
+
+# =============================================================================
+# Transfer Method Selection and Execution
+# =============================================================================
+
+- name: Execute S3-based transfer
+  include_tasks: s3_transfer.yml
+  when: 
+    - transfer_method in ['s3', 'hybrid']
+    - source_db_host != target_db_host or transfer_method == 's3'
+
+- name: Execute direct transfer (fallback or primary)
+  include_tasks: direct_transfer.yml
+  when: 
+    - transfer_method == 'direct' or 
+      (enable_transfer_fallback and transfer_method in ['s3', 'hybrid'])
+    - source_db_host != target_db_host
+
+- name: Handle same-server scenario
+  debug:
+    msg: |
+      ℹ️ Source and target are on the same server ({{ source_db_host }})
+      No file transfer required - dump file is already accessible for import.
+  when: 
+    - source_db_host == target_db_host
+    - transfer_method == 'direct'
+
+# =============================================================================
+# Final Verification
+# =============================================================================
+
+- name: Final verification of dump file availability
+  stat:
+    path: "{{ oracle_data_pump_dir }}/{{ dump_file_name }}"
+  register: final_dump_file_stat
+  delegate_to: "{{ target_db_host }}"
+  become_user: "{{ oracle_user }}"
+  when: source_db_host != target_db_host
+
+- name: Confirm transfer success
+  debug:
+    msg: |
+      ✅ Dump file transfer completed successfully!
+      Transfer Method: {{ transfer_method | upper }}
+      File Location: {{ target_db_host }}:{{ oracle_data_pump_dir }}/{{ dump_file_name }}
+      File Size: {{ (final_dump_file_stat.stat.size / 1024 / 1024) | round(2) }} MB
+  when: 
+    - source_db_host != target_db_host
+    - final_dump_file_stat.stat.exists
+
+- name: Transfer failure handling
+  fail:
+    msg: |
+      ❌ Dump file transfer failed!
+      
+      Transfer method attempted: {{ transfer_method }}
+      Expected location: {{ target_db_host }}:{{ oracle_data_pump_dir }}/{{ dump_file_name }}
+      
+      Check the transfer logs and retry the operation.
+  when: 
+    - source_db_host != target_db_host
+    - not final_dump_file_stat.stat.exists
+
+- name: Check target directory exists and is writable
+  block:
+    - name: Ensure target dump directory exists
+      file:
+        path: "{{ oracle_data_pump_dir }}"
+        state: directory
+        owner: "{{ oracle_user }}"
+        group: "{{ oracle_user }}"
+        mode: "0755"
+      delegate_to: "{{ target_db_host }}"
+      become: true
+
+    - name: Check available space on target
+      shell: df -h {{ oracle_data_pump_dir }} | tail -1 | awk '{print $4}'
+      register: target_available_space
+      delegate_to: "{{ target_db_host }}"
+      become_user: "{{ oracle_user }}"
+      when: enable_preflight_checks | bool
+
+    - name: Display target space information
+      debug:
+        msg: |
+          💾 Target Storage Information:
+          Available Space: {{ target_available_space.stdout | default('Unknown') }}
+          File Size: {{ (source_dump_file_stat.stat.size / 1024 / 1024) | round(2) }} MB
+      when: 
+        - enable_preflight_checks | bool
+        - target_available_space is defined
+
+  when: enable_preflight_checks | bool
+
+- name: Transfer dump file between servers
+  block:
+    - name: Execute file transfer with retry
+      synchronize:
+        src: "{{ oracle_data_pump_dir }}/{{ dump_file_name }}"
+        dest: "{{ oracle_data_pump_dir }}/{{ dump_file_name }}"
+        mode: pull
+        owner: "{{ oracle_user }}"
+        group: "{{ oracle_user }}"
+        perms: true
+        times: true
+        checksum: true
+      delegate_to: "{{ target_db_host }}"
+      become_user: "{{ oracle_user }}"
+      register: transfer_result
+      retries: "{{ transfer_retry_count }}"
+      delay: "{{ transfer_retry_delay }}"
+
+    - name: Log transfer completion
+      debug:
+        msg: |
+          ✅ File transfer completed successfully!
+          Source: {{ source_db_host }}:{{ oracle_data_pump_dir }}/{{ dump_file_name }}
+          Target: {{ target_db_host }}:{{ oracle_data_pump_dir }}/{{ dump_file_name }}
+          Transfer Time: {{ transfer_result.end_time | default('Unknown') }}
+
+  rescue:
+    - name: Handle transfer failure
+      fail:
+        msg: |
+          ❌ File transfer failed after {{ transfer_retry_count }} attempts!
+          
+          Error Details: {{ transfer_result.msg | default('Unknown error') }}
+          
+          Troubleshooting Steps:
+          1. Check network connectivity between {{ source_db_host }} and {{ target_db_host }}
+          2. Verify SSH access and key authentication
+          3. Check disk space on target server
+          4. Ensure {{ oracle_user }} has proper permissions on both servers
+          5. Verify rsync is installed and accessible
+
+  when: source_db_host != target_db_host
+
+- name: Verify transferred file integrity
+  block:
+    - name: Check transferred file exists
+      stat:
+        path: "{{ oracle_data_pump_dir }}/{{ dump_file_name }}"
+      register: transferred_dump_file_stat
+      delegate_to: "{{ target_db_host }}"
+      become_user: "{{ oracle_user }}"
+
+    - name: Compare file sizes
+      debug:
+        msg: |
+          📊 File Integrity Check:
+          Source Size: {{ (source_dump_file_stat.stat.size / 1024 / 1024) | round(2) }} MB
+          Target Size: {{ (transferred_dump_file_stat.stat.size / 1024 / 1024) | round(2) }} MB
+          Match: {{ 'Yes' if source_dump_file_stat.stat.size == transferred_dump_file_stat.stat.size else 'No' }}
+
+    - name: Fail if file sizes don't match
+      fail:
+        msg: |
+          ❌ File transfer integrity check failed!
+          
+          Source file size: {{ source_dump_file_stat.stat.size }} bytes
+          Target file size: {{ transferred_dump_file_stat.stat.size }} bytes
+          
+          The file may have been corrupted during transfer. Please retry the operation.
+      when: source_dump_file_stat.stat.size != transferred_dump_file_stat.stat.size
+
+    - name: Log successful verification
+      lineinfile:
+        path: "{{ log_dir }}/transfer_operations.log"
+        line: "{{ ansible_date_time.iso8601 }} - Transfer verified: {{ dump_file_name }} ({{ (transferred_dump_file_stat.stat.size / 1024 / 1024) | round(2) }} MB) {{ source_db_host }} -> {{ target_db_host }}"
+        create: true
+        owner: "{{ oracle_user }}"
+        group: "{{ oracle_user }}"
+      delegate_to: localhost
+      when: detailed_logging | bool
+
+  when: source_db_host != target_db_host
+
+- name: Handle same-server scenario
+  debug:
+    msg: |
+      ℹ️ Source and target are on the same server ({{ source_db_host }})
+      No file transfer required - dump file is already accessible for import.
+  when: source_db_host == target_db_host

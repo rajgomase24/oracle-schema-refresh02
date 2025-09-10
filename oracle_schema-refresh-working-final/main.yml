@@ -1,0 +1,180 @@
+---
+# =============================================================================
+# Oracle Schema Refresh Playbook
+# =============================================================================
+# This playbook orchestrates Oracle schema refresh operations using the
+# oracle_schema_refresh role with centralized variable management.
+# 
+# Compatible with Ansible Tower for enterprise automation.
+# =============================================================================
+
+- name: Oracle Schema Refresh Operation
+  hosts: "{{ target_hosts | default('databases') }}"
+  gather_facts: true
+  
+  # Load centralized variables
+  vars_files:
+    - vars.yml
+    - "{{ vault_file | default('vault.yml') }}"
+  
+  # Default variables (can be overridden by Tower or extra vars)
+  vars:
+    # Set operation start time for duration calculation
+    operation_start_time: "{{ ansible_date_time.epoch }}"
+    
+    # Ansible Tower integration variables
+    tower_job_id: "{{ tower_job_id | default('manual') }}"
+    tower_user: "{{ tower_user_name | default(ansible_user_id) }}"
+    
+    # Environment-specific overrides (useful for Tower surveys)
+    environment_overrides: "{{ environment_config | default({}) }}"
+  
+  # Pre-task validations and setup
+  pre_tasks:
+    - name: Display execution context
+      debug:
+        msg: |
+          🚀 Oracle Schema Refresh Execution Context
+          ==========================================
+          Execution Mode: {{ 'Ansible Tower' if tower_job_id != 'manual' else 'Manual' }}
+          Job ID: {{ tower_job_id }}
+          User: {{ tower_user }}
+          Target Hosts: {{ ansible_play_hosts | join(', ') }}
+          Environment: {{ environment_name }}
+          Timestamp: {{ ansible_date_time.iso8601 }}
+
+    - name: Validate Ansible version compatibility
+      fail:
+        msg: "This playbook requires Ansible 2.9 or higher. Current version: {{ ansible_version.full }}"
+      when: ansible_version.major < 2 or (ansible_version.major == 2 and ansible_version.minor < 9)
+
+    - name: Set dynamic variables from Tower survey (if available)
+      set_fact:
+        "{{ item.key }}": "{{ item.value }}"
+      loop: "{{ environment_overrides | dict2items }}"
+      when: environment_overrides is defined and environment_overrides | length > 0
+
+    - name: Validate critical paths exist
+      stat:
+        path: "{{ item }}"
+      register: path_checks
+      loop:
+        - "{{ oracle_home }}"
+        - "{{ oracle_data_pump_dir }}"
+      failed_when: not path_checks.results[0].stat.exists or not path_checks.results[1].stat.exists
+      when: enable_preflight_checks | bool
+
+  # Execute the schema refresh role
+  roles:
+    - role: oracle_schema_refresh
+      tags:
+        - oracle
+        - schema_refresh
+        - database
+
+  # Post-task cleanup and reporting
+  post_tasks:
+    - name: Generate operation summary
+      set_fact:
+        operation_summary:
+          operation_type: "{{ refresh_type }}"
+          source_schema: "{{ source_schema }}"
+          target_schema: "{{ target_schema }}"
+          source_host: "{{ source_db_host }}"
+          target_host: "{{ target_db_host }}"
+          validation_performed: "{{ validation_required }}"
+          start_time: "{{ operation_start_time }}"
+          end_time: "{{ ansible_date_time.epoch }}"
+          duration_seconds: "{{ ansible_date_time.epoch | int - operation_start_time | int }}"
+          executed_by: "{{ tower_user }}"
+          job_id: "{{ tower_job_id }}"
+
+    - name: Save operation report
+      copy:
+        content: |
+          # Oracle Schema Refresh Operation Report
+          
+          **Operation Summary**
+          - Type: {{ operation_summary.operation_type }}
+          - Source: {{ operation_summary.source_schema }}@{{ operation_summary.source_host }}
+          - Target: {{ operation_summary.target_schema }}@{{ operation_summary.target_host }}
+          - Duration: {{ operation_summary.duration_seconds }} seconds
+          - Status: SUCCESS
+          - Executed by: {{ operation_summary.executed_by }}
+          - Job ID: {{ operation_summary.job_id }}
+          - Timestamp: {{ ansible_date_time.iso8601 }}
+          
+          **Configuration Used**
+          - Oracle Home: {{ oracle_home }}
+          - Data Pump Directory: {{ oracle_data_pump_dir }}
+          - Parallel Threads: {{ parallel_threads }}
+          - Validation: {{ 'Enabled' if validation_required else 'Disabled' }}
+          - Environment: {{ environment_name }}
+          
+          **Files and Logs**
+          - Dump File: {{ dump_file_name }}
+          - Log Directory: {{ log_dir }}
+          - Export Log: {{ export_log_pattern if refresh_type in ['full', 'export_only'] else 'N/A' }}
+          - Import Log: {{ import_log_pattern if refresh_type in ['full', 'import_only'] else 'N/A' }}
+        dest: "{{ log_dir }}/operation_report_{{ ansible_date_time.epoch }}.md"
+        owner: "{{ oracle_user }}"
+        group: "{{ oracle_user }}"
+        mode: "0644"
+      delegate_to: localhost
+      when: detailed_logging | bool
+
+    - name: Display final success message
+      debug:
+        msg: |
+          
+          🎉 ORACLE SCHEMA REFRESH COMPLETED SUCCESSFULLY! 🎉
+          
+          ✅ Operation: {{ operation_summary.operation_type | upper }}
+          ✅ Duration: {{ operation_summary.duration_seconds }} seconds
+          ✅ Schema: {{ operation_summary.source_schema }} → {{ operation_summary.target_schema }}
+          ✅ Validation: {{ 'PASSED' if validation_required else 'SKIPPED' }}
+          
+          📋 Next Steps:
+          {% if refresh_type == 'export_only' %}
+          - Review export logs for any warnings
+          - Transfer dump file if needed: {{ oracle_data_pump_dir }}/{{ dump_file_name }}
+          - Run import operation when ready
+          {% elif refresh_type == 'import_only' %}
+          - Verify application connectivity to {{ target_schema }}
+          - Run application-specific validations
+          - Update application configuration if needed
+          {% else %}
+          - Verify application connectivity to {{ target_schema }}
+          - Run application-specific tests
+          - Monitor database performance
+          {% endif %}
+          
+          📊 Report Location: {{ log_dir }}/operation_report_{{ ansible_date_time.epoch }}.md
+
+  # Handle failures gracefully
+  rescue:
+    - name: Log operation failure
+      lineinfile:
+        path: "{{ log_dir }}/refresh_operations.log"
+        line: "{{ ansible_date_time.iso8601 }} - FAILED {{ refresh_type }} refresh: {{ source_schema }} -> {{ target_schema }} [ERROR: {{ ansible_failed_result.msg | default('Unknown error') }}]"
+        create: true
+      delegate_to: localhost
+      when: detailed_logging | bool
+
+    - name: Display failure message
+      debug:
+        msg: |
+          ❌ ORACLE SCHEMA REFRESH FAILED!
+          
+          Operation: {{ refresh_type }}
+          Source: {{ source_schema }}
+          Target: {{ target_schema }}
+          Error: {{ ansible_failed_result.msg | default('Unknown error occurred') }}
+          
+          🔍 Troubleshooting:
+          1. Check the logs in {{ log_dir }}
+          2. Verify Oracle connectivity and credentials
+          3. Ensure sufficient disk space and permissions
+          4. Review the specific error message above
+          
+          For support, provide the job ID: {{ tower_job_id }}

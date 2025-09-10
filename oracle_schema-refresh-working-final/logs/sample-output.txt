@@ -1,0 +1,474 @@
+
+[oracle@hanvldbqualnonstop01 oracle-schema-refresh02]$
+[oracle@hanvldbqualnonstop01 oracle-schema-refresh02]$ ansible-playbook main.yml -i inventory.ini -e @var.yml -e @vault.yml --ask-vault-pass -vvvansible-playbook [core 2.16.3]
+  config file = /etc/ansible/ansible.cfg
+  configured module search path = ['/home/oracle/.ansible/plugins/modules', '/usr/share/ansible/plugins/modules']
+  ansible python module location = /usr/lib/python3.12/site-packages/ansible
+  ansible collection location = /home/oracle/.ansible/collections:/usr/share/ansible/collections
+  executable location = /usr/bin/ansible-playbook
+  python version = 3.12.11 (main, Aug 15 2025, 13:38:57) [GCC 8.5.0 20210514 (Red Hat 8.5.0-28)] (/usr/bin/python3.12)
+  jinja version = 3.1.2
+  libyaml = True
+Using /etc/ansible/ansible.cfg as config file
+Vault password:
+host_list declined parsing /home/oracle/rajesh/automation/oracle-schema-refresh/oracle-schema-refresh02/oracle-schema-refresh02/inventory.ini as it did not pass its verify_file() method
+script declined parsing /home/oracle/rajesh/automation/oracle-schema-refresh/oracle-schema-refresh02/oracle-schema-refresh02/inventory.ini as it did not pass its verify_file() method
+auto declined parsing /home/oracle/rajesh/automation/oracle-schema-refresh/oracle-schema-refresh02/oracle-schema-refresh02/inventory.ini as it did not pass its verify_file() method
+yaml declined parsing /home/oracle/rajesh/automation/oracle-schema-refresh/oracle-schema-refresh02/oracle-schema-refresh02/inventory.ini as it did not pass its verify_file() method
+Parsed /home/oracle/rajesh/automation/oracle-schema-refresh/oracle-schema-refresh02/oracle-schema-refresh02/inventory.ini inventory source with ini plugin
+Skipping callback 'default', as we already have a stdout callback.
+Skipping callback 'minimal', as we already have a stdout callback.
+Skipping callback 'oneline', as we already have a stdout callback.
+
+PLAYBOOK: main.yml **************************************************************************************************************************************************************************
+1 plays in main.yml
+
+PLAY [Refresh Oracle Schema] ****************************************************************************************************************************************************************
+
+TASK [Gathering Facts] **********************************************************************************************************************************************************************
+task path: /home/oracle/rajesh/automation/oracle-schema-refresh/oracle-schema-refresh02/oracle-schema-refresh02/main.yml:1
+<10.219.146.189> ESTABLISH LOCAL CONNECTION FOR USER: oracle
+<10.219.146.189> EXEC /bin/sh -c 'echo ~oracle && sleep 0'
+<10.219.146.189> EXEC /bin/sh -c '( umask 77 && mkdir -p "` echo /home/oracle/.ansible/tmp `"&& mkdir "` echo /home/oracle/.ansible/tmp/ansible-tmp-1757448453.2773814-1033530-11386550112968 `" && echo ansible-tmp-1757448453.2773814-1033530-11386550112968="` echo /home/oracle/.ansible/tmp/ansible-tmp-1757448453.2773814-1033530-11386550112968 `" ) && sleep 0'
+Using module file /usr/lib/python3.12/site-packages/ansible/modules/setup.py
+<10.219.146.189> PUT /home/oracle/.ansible/tmp/ansible-local-10334855bfi9q2w/tmp6ehw69d3 TO /home/oracle/.ansible/tmp/ansible-tmp-1757448453.2773814-1033530-11386550112968/AnsiballZ_setup.py
+<10.219.146.189> EXEC /bin/sh -c 'chmod u+x /home/oracle/.ansible/tmp/ansible-tmp-1757448453.2773814-1033530-11386550112968/ /home/oracle/.ansible/tmp/ansible-tmp-1757448453.2773814-1033530-11386550112968/AnsiballZ_setup.py && sleep 0'
+<10.219.146.189> EXEC /bin/sh -c '/usr/bin/python3 /home/oracle/.ansible/tmp/ansible-tmp-1757448453.2773814-1033530-11386550112968/AnsiballZ_setup.py && sleep 0'
+<10.219.146.189> EXEC /bin/sh -c 'rm -f -r /home/oracle/.ansible/tmp/ansible-tmp-1757448453.2773814-1033530-11386550112968/ > /dev/null 2>&1 && sleep 0'
+ok: [10.219.146.189]
+
+TASK [oracle_schema_refresh : Validate parameters] ******************************************************************************************************************************************
+task path: /home/oracle/rajesh/automation/oracle-schema-refresh/oracle-schema-refresh02/oracle-schema-refresh02/oracle_schema_refresh/tasks/main.yml:1
+skipping: [10.219.146.189] => (item=source_db_host)  => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "false_condition": "item | default('') == ''",
+    "item": "source_db_host",
+    "skip_reason": "Conditional result was False"
+}
+skipping: [10.219.146.189] => (item=target_db_host)  => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "false_condition": "item | default('') == ''",
+    "item": "target_db_host",
+    "skip_reason": "Conditional result was False"
+}
+skipping: [10.219.146.189] => (item=source_schema)  => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "false_condition": "item | default('') == ''",
+    "item": "source_schema",
+    "skip_reason": "Conditional result was False"
+}
+skipping: [10.219.146.189] => (item=target_schema)  => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "false_condition": "item | default('') == ''",
+    "item": "target_schema",
+    "skip_reason": "Conditional result was False"
+}
+skipping: [10.219.146.189] => (item=db_user)  => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "false_condition": "item | default('') == ''",
+    "item": "db_user",
+    "skip_reason": "Conditional result was False"
+}
+skipping: [10.219.146.189] => (item=db_password)  => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "false_condition": "item | default('') == ''",
+    "item": "db_password",
+    "skip_reason": "Conditional result was False"
+}
+skipping: [10.219.146.189] => (item=sys_password)  => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "false_condition": "item | default('') == ''",
+    "item": "sys_password",
+    "skip_reason": "Conditional result was False"
+}
+skipping: [10.219.146.189] => {
+    "changed": false,
+    "msg": "All items skipped"
+}
+
+TASK [oracle_schema_refresh : Create log directory] *****************************************************************************************************************************************
+task path: /home/oracle/rajesh/automation/oracle-schema-refresh/oracle-schema-refresh02/oracle-schema-refresh02/oracle_schema_refresh/tasks/main.yml:14
+<localhost> ESTABLISH LOCAL CONNECTION FOR USER: oracle
+<localhost> EXEC /bin/sh -c 'echo ~oracle && sleep 0'
+<localhost> EXEC /bin/sh -c '( umask 77 && mkdir -p "` echo /home/oracle/.ansible/tmp `"&& mkdir "` echo /home/oracle/.ansible/tmp/ansible-tmp-1757448454.6213403-1033678-66000954312546 `" && echo ansible-tmp-1757448454.6213403-1033678-66000954312546="` echo /home/oracle/.ansible/tmp/ansible-tmp-1757448454.6213403-1033678-66000954312546 `" ) && sleep 0'
+Using module file /usr/lib/python3.12/site-packages/ansible/modules/file.py
+<localhost> PUT /home/oracle/.ansible/tmp/ansible-local-10334855bfi9q2w/tmp4l9vqhej TO /home/oracle/.ansible/tmp/ansible-tmp-1757448454.6213403-1033678-66000954312546/AnsiballZ_file.py
+<localhost> EXEC /bin/sh -c 'chmod u+x /home/oracle/.ansible/tmp/ansible-tmp-1757448454.6213403-1033678-66000954312546/ /home/oracle/.ansible/tmp/ansible-tmp-1757448454.6213403-1033678-66000954312546/AnsiballZ_file.py && sleep 0'
+<localhost> EXEC /bin/sh -c '/usr/bin/python3.12 /home/oracle/.ansible/tmp/ansible-tmp-1757448454.6213403-1033678-66000954312546/AnsiballZ_file.py && sleep 0'
+<localhost> EXEC /bin/sh -c 'rm -f -r /home/oracle/.ansible/tmp/ansible-tmp-1757448454.6213403-1033678-66000954312546/ > /dev/null 2>&1 && sleep 0'
+ok: [10.219.146.189 -> localhost] => {
+    "changed": false,
+    "diff": {
+        "after": {
+            "path": "/tmp/refresh_logs"
+        },
+        "before": {
+            "path": "/tmp/refresh_logs"
+        }
+    },
+    "gid": 10003,
+    "group": "dba",
+    "invocation": {
+        "module_args": {
+            "_diff_peek": null,
+            "_original_basename": null,
+            "access_time": null,
+            "access_time_format": "%Y%m%d%H%M.%S",
+            "attributes": null,
+            "follow": true,
+            "force": false,
+            "group": null,
+            "mode": "0755",
+            "modification_time": null,
+            "modification_time_format": "%Y%m%d%H%M.%S",
+            "owner": null,
+            "path": "/tmp/refresh_logs",
+            "recurse": false,
+            "selevel": null,
+            "serole": null,
+            "setype": null,
+            "seuser": null,
+            "src": null,
+            "state": "directory",
+            "unsafe_writes": false
+        }
+    },
+    "mode": "0755",
+    "owner": "oracle",
+    "path": "/tmp/refresh_logs",
+    "size": 6,
+    "state": "directory",
+    "uid": 10003
+}
+
+TASK [oracle_schema_refresh : include_tasks] ************************************************************************************************************************************************
+task path: /home/oracle/rajesh/automation/oracle-schema-refresh/oracle-schema-refresh02/oracle-schema-refresh02/oracle_schema_refresh/tasks/main.yml:21
+included: /home/oracle/rajesh/automation/oracle-schema-refresh/oracle-schema-refresh02/oracle-schema-refresh02/oracle_schema_refresh/tasks/export_schema.yml for 10.219.146.189
+
+TASK [oracle_schema_refresh : Check if source schema exists] ********************************************************************************************************************************
+task path: /home/oracle/rajesh/automation/oracle-schema-refresh/oracle-schema-refresh02/oracle-schema-refresh02/oracle_schema_refresh/tasks/export_schema.yml:1
+<10.219.146.189> ESTABLISH LOCAL CONNECTION FOR USER: oracle
+<10.219.146.189> EXEC /bin/sh -c 'echo ~oracle && sleep 0'
+<10.219.146.189> EXEC /bin/sh -c '( umask 77 && mkdir -p "` echo /home/oracle/.ansible/tmp `"&& mkdir "` echo /home/oracle/.ansible/tmp/ansible-tmp-1757448455.0300534-1033694-173572204225113 `" && echo ansible-tmp-1757448455.0300534-1033694-173572204225113="` echo /home/oracle/.ansible/tmp/ansible-tmp-1757448455.0300534-1033694-173572204225113 `" ) && sleep 0'
+Using module file /usr/lib/python3.12/site-packages/ansible/modules/command.py
+<10.219.146.189> PUT /home/oracle/.ansible/tmp/ansible-local-10334855bfi9q2w/tmph2mhtc4b TO /home/oracle/.ansible/tmp/ansible-tmp-1757448455.0300534-1033694-173572204225113/AnsiballZ_command.py
+<10.219.146.189> EXEC /bin/sh -c 'chmod u+x /home/oracle/.ansible/tmp/ansible-tmp-1757448455.0300534-1033694-173572204225113/ /home/oracle/.ansible/tmp/ansible-tmp-1757448455.0300534-1033694-173572204225113/AnsiballZ_command.py && sleep 0'
+<10.219.146.189> EXEC /bin/sh -c 'ORACLE_HOME=/u01/app/oracle/product/19c/dbhome_1 ORACLE_SID=nsqual PATH=/u01/app/oracle/product/19c/dbhome_1/bin:/home/oracle/.local/bin:/home/oracle/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin /usr/bin/python3 /home/oracle/.ansible/tmp/ansible-tmp-1757448455.0300534-1033694-173572204225113/AnsiballZ_command.py && sleep 0'
+<10.219.146.189> EXEC /bin/sh -c 'rm -f -r /home/oracle/.ansible/tmp/ansible-tmp-1757448455.0300534-1033694-173572204225113/ > /dev/null 2>&1 && sleep 0'
+changed: [10.219.146.189] => {
+    "changed": true,
+    "cmd": "sqlplus -s testdba/testdba@10.219.146.189:1521/nsqual01 <<EOF\nSET HEADING OFF FEEDBACK OFF PAGESIZE 0 VERIFY OFF\nSELECT COUNT(*) FROM dba_users WHERE username = UPPER('AUTOMATIONTEST');\nEXIT;\nEOF\n",
+    "delta": "0:00:00.068592",
+    "end": "2025-09-09 15:07:35.388175",
+    "invocation": {
+        "module_args": {
+            "_raw_params": "sqlplus -s testdba/testdba@10.219.146.189:1521/nsqual01 <<EOF\nSET HEADING OFF FEEDBACK OFF PAGESIZE 0 VERIFY OFF\nSELECT COUNT(*) FROM dba_users WHERE username= UPPER('AUTOMATIONTEST');\nEXIT;\nEOF\n",
+            "_uses_shell": true,
+            "argv": null,
+            "chdir": null,
+            "creates": null,
+            "executable": null,
+            "expand_argument_vars": true,
+            "removes": null,
+            "stdin": null,
+            "stdin_add_newline": true,
+            "strip_empty_ends": true
+        }
+    },
+    "msg": "",
+    "rc": 0,
+    "start": "2025-09-09 15:07:35.319583",
+    "stderr": "",
+    "stderr_lines": [],
+    "stdout": "\t 1",
+    "stdout_lines": [
+        "\t 1"
+    ]
+}
+
+TASK [oracle_schema_refresh : Set schema_exists fact] ***************************************************************************************************************************************
+task path: /home/oracle/rajesh/automation/oracle-schema-refresh/oracle-schema-refresh02/oracle-schema-refresh02/oracle_schema_refresh/tasks/export_schema.yml:15
+ok: [10.219.146.189] => {
+    "ansible_facts": {
+        "schema_exists": true
+    },
+    "changed": false
+}
+
+TASK [oracle_schema_refresh : Warn if schema does not exist] ********************************************************************************************************************************
+task path: /home/oracle/rajesh/automation/oracle-schema-refresh/oracle-schema-refresh02/oracle-schema-refresh02/oracle_schema_refresh/tasks/export_schema.yml:19
+skipping: [10.219.146.189] => {
+    "false_condition": "not schema_exists"
+}
+
+TASK [oracle_schema_refresh : Prompt to continue or abort] **********************************************************************************************************************************
+task path: /home/oracle/rajesh/automation/oracle-schema-refresh/oracle-schema-refresh02/oracle-schema-refresh02/oracle_schema_refresh/tasks/export_schema.yml:24
+skipping: [10.219.146.189] => {
+    "changed": false,
+    "false_condition": "not schema_exists",
+    "skip_reason": "Conditional result was False"
+}
+
+TASK [oracle_schema_refresh : Export source schema] *****************************************************************************************************************************************
+task path: /home/oracle/rajesh/automation/oracle-schema-refresh/oracle-schema-refresh02/oracle-schema-refresh02/oracle_schema_refresh/tasks/export_schema.yml:29
+<10.219.146.189> ESTABLISH LOCAL CONNECTION FOR USER: oracle
+<10.219.146.189> EXEC /bin/sh -c 'echo ~oracle && sleep 0'
+<10.219.146.189> EXEC /bin/sh -c '( umask 77 && mkdir -p "` echo /home/oracle/.ansible/tmp `"&& mkdir "` echo /home/oracle/.ansible/tmp/ansible-tmp-1757448455.5220933-1033718-181318071774161 `" && echo ansible-tmp-1757448455.5220933-1033718-181318071774161="` echo /home/oracle/.ansible/tmp/ansible-tmp-1757448455.5220933-1033718-181318071774161 `" ) && sleep 0'
+Using module file /usr/lib/python3.12/site-packages/ansible/modules/command.py
+<10.219.146.189> PUT /home/oracle/.ansible/tmp/ansible-local-10334855bfi9q2w/tmp0blkwnhn TO /home/oracle/.ansible/tmp/ansible-tmp-1757448455.5220933-1033718-181318071774161/AnsiballZ_command.py
+<10.219.146.189> EXEC /bin/sh -c 'chmod u+x /home/oracle/.ansible/tmp/ansible-tmp-1757448455.5220933-1033718-181318071774161/ /home/oracle/.ansible/tmp/ansible-tmp-1757448455.5220933-1033718-181318071774161/AnsiballZ_command.py && sleep 0'
+<10.219.146.189> EXEC /bin/sh -c 'ORACLE_HOME=/u01/app/oracle/product/19c/dbhome_1 ORACLE_SID=nsqual PATH=/u01/app/oracle/product/19c/dbhome_1/bin:/home/oracle/.local/bin:/home/oracle/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin /usr/bin/python3 /home/oracle/.ansible/tmp/ansible-tmp-1757448455.5220933-1033718-181318071774161/AnsiballZ_command.py && sleep 0'
+<10.219.146.189> EXEC /bin/sh -c 'rm -f -r /home/oracle/.ansible/tmp/ansible-tmp-1757448455.5220933-1033718-181318071774161/ > /dev/null 2>&1 && sleep 0'
+changed: [10.219.146.189] => {
+    "changed": true,
+    "cmd": "/u01/app/oracle/product/19c/dbhome_1/bin/expdp testdba/testdba@10.219.146.189:1521/nsqual01 schemas=AUTOMATIONTEST directory=DATA_PUMP_DIR dumpfile=automationtest_schema_refresh.dmp logfile=export_AUTOMATIONTEST_1757448453.log parallel=4 compression=ALL\n",
+    "delta": "0:00:00.900751",
+    "end": "2025-09-09 15:07:36.624270",
+    "failed_when_result": false,
+    "invocation": {
+        "module_args": {
+            "_raw_params": "/u01/app/oracle/product/19c/dbhome_1/bin/expdp testdba/testdba@10.219.146.189:1521/nsqual01 schemas=AUTOMATIONTEST directory=DATA_PUMP_DIR dumpfile=automationtest_schema_refresh.dmp logfile=export_AUTOMATIONTEST_1757448453.log parallel=4 compression=ALL\n",
+            "_uses_shell": true,
+            "argv": null,
+            "chdir": null,
+            "creates": null,
+            "executable": null,
+            "expand_argument_vars": true,
+            "removes": null,
+            "stdin": null,
+            "stdin_add_newline": true,
+            "strip_empty_ends": true
+        }
+    },
+    "msg": "non-zero return code",
+    "rc": 1,
+    "start": "2025-09-09 15:07:35.723519",
+    "stderr": "\nExport: Release 19.0.0.0.0 - Production on Tue Sep 9 15:07:35 2025\nVersion 19.23.0.0.0\n\nCopyright (c) 1982, 2019, Oracle and/or its affiliates.  All rights reserved.\n\nConnected to: Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production\nORA-39001: invalid argument value\nORA-39000: bad dump file specification\nORA-31641: unable to createdump file \"/u01/app/oracle/admin/nsqual/dpdump/automationtest_schema_refresh.dmp\"\nORA-27038: created file already exists\nAdditional information: 1",
+    "stderr_lines": [
+        "",
+        "Export: Release 19.0.0.0.0 - Production on Tue Sep 9 15:07:35 2025",
+        "Version 19.23.0.0.0",
+        "",
+        "Copyright (c) 1982, 2019, Oracle and/or its affiliates.  All rights reserved.",
+        "",
+        "Connected to: Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production",
+        "ORA-39001: invalid argument value",
+        "ORA-39000: bad dump file specification",
+        "ORA-31641: unable to create dump file \"/u01/app/oracle/admin/nsqual/dpdump/automationtest_schema_refresh.dmp\"",
+        "ORA-27038: created file already exists",
+        "Additional information: 1"
+    ],
+    "stdout": "",
+    "stdout_lines": []
+}
+
+TASK [oracle_schema_refresh : Check export result] ******************************************************************************************************************************************
+task path: /home/oracle/rajesh/automation/oracle-schema-refresh/oracle-schema-refresh02/oracle-schema-refresh02/oracle_schema_refresh/tasks/export_schema.yml:49
+skipping: [10.219.146.189] => {
+    "false_condition": "export_result.rc == 0"
+}
+
+TASK [oracle_schema_refresh : include_tasks] ************************************************************************************************************************************************
+task path: /home/oracle/rajesh/automation/oracle-schema-refresh/oracle-schema-refresh02/oracle-schema-refresh02/oracle_schema_refresh/tasks/main.yml:24
+skipping: [10.219.146.189] => {
+    "changed": false,
+    "false_condition": "source_db_host != target_db_host",
+    "skip_reason": "Conditional result was False"
+}
+
+TASK [oracle_schema_refresh : include_tasks] ************************************************************************************************************************************************
+task path: /home/oracle/rajesh/automation/oracle-schema-refresh/oracle-schema-refresh02/oracle-schema-refresh02/oracle_schema_refresh/tasks/main.yml:29
+included: /home/oracle/rajesh/automation/oracle-schema-refresh/oracle-schema-refresh02/oracle-schema-refresh02/oracle_schema_refresh/tasks/drop_target_schema.yml for 10.219.146.189
+
+TASK [oracle_schema_refresh : Kill sessions and drop AUTOMATIONTEST schema] *****************************************************************************************************************
+task path: /home/oracle/rajesh/automation/oracle-schema-refresh/oracle-schema-refresh02/oracle-schema-refresh02/oracle_schema_refresh/tasks/drop_target_schema.yml:1
+<10.219.146.189> ESTABLISH LOCAL CONNECTION FOR USER: oracle
+<10.219.146.189> EXEC /bin/sh -c 'echo ~oracle && sleep 0'
+<10.219.146.189> EXEC /bin/sh -c '( umask 77 && mkdir -p "` echo /home/oracle/.ansible/tmp `"&& mkdir "` echo /home/oracle/.ansible/tmp/ansible-tmp-1757448456.7652452-1033748-110394702135475 `" && echo ansible-tmp-1757448456.7652452-1033748-110394702135475="` echo /home/oracle/.ansible/tmp/ansible-tmp-1757448456.7652452-1033748-110394702135475 `" ) && sleep 0'
+Using module file /usr/lib/python3.12/site-packages/ansible/modules/command.py
+<10.219.146.189> PUT /home/oracle/.ansible/tmp/ansible-local-10334855bfi9q2w/tmppv9bhkg7 TO /home/oracle/.ansible/tmp/ansible-tmp-1757448456.7652452-1033748-110394702135475/AnsiballZ_command.py
+<10.219.146.189> EXEC /bin/sh -c 'chmod u+x /home/oracle/.ansible/tmp/ansible-tmp-1757448456.7652452-1033748-110394702135475/ /home/oracle/.ansible/tmp/ansible-tmp-1757448456.7652452-1033748-110394702135475/AnsiballZ_command.py && sleep 0'
+<10.219.146.189> EXEC /bin/sh -c 'ORACLE_HOME=/u01/app/oracle/product/19c/dbhome_1 /usr/bin/python3 /home/oracle/.ansible/tmp/ansible-tmp-1757448456.7652452-1033748-110394702135475/AnsiballZ_command.py && sleep 0'
+<10.219.146.189> EXEC /bin/sh -c 'rm -f -r /home/oracle/.ansible/tmp/ansible-tmp-1757448456.7652452-1033748-110394702135475/ > /dev/null 2>&1 && sleep 0'
+changed: [10.219.146.189] => {
+    "changed": true,
+    "cmd": "#!/bin/bash\nsqlplus -s /nolog <<EOF\nCONNECT testdba/testdba@10.219.146.189:1521/nsqual01\n\n-- Kill active sessions for AUTOMATIONTEST\nBEGIN\n  FOR sess IN (\n    SELECT sid, serial# \n    FROM v\\$session \n    WHERE username = 'AUTOMATIONTEST'\n  ) LOOP\n    EXECUTE IMMEDIATE 'ALTER SYSTEM KILL SESSION ''' || sess.sid || ',' || sess.serial# || ''' IMMEDIATE';\n  END LOOP;\nEND;\n/\n\n-- Drop schema if it exists\nDECLARE\n  user_exists NUMBER;\nBEGIN\n  SELECT COUNT(*) INTO user_exists FROM dba_users WHERE username = 'AUTOMATIONTEST';\n  IF user_exists > 0 THEN\n    EXECUTE IMMEDIATE 'DROP USER AUTOMATIONTEST CASCADE';\n  END IF;\nEXCEPTION\n  WHEN OTHERS THEN\n    RAISE;\nEND;\n/\nEOF\n",
+    "delta": "0:00:00.174778",
+    "end": "2025-09-09 15:07:37.139386",
+    "failed_when_result": false,
+    "invocation": {
+        "module_args": {
+            "_raw_params": "#!/bin/bash\nsqlplus -s /nolog <<EOF\nCONNECT testdba/testdba@10.219.146.189:1521/nsqual01\n\n-- Kill active sessions for AUTOMATIONTEST\nBEGIN\n  FOR sess IN (\n    SELECT sid, serial# \n    FROM v\\$session \n    WHERE username = 'AUTOMATIONTEST'\n  ) LOOP\n    EXECUTE IMMEDIATE 'ALTER SYSTEM KILL SESSION ''' || sess.sid || ',' || sess.serial# || ''' IMMEDIATE';\n  END LOOP;\nEND;\n/\n\n-- Drop schema if it exists\nDECLARE\n  user_exists NUMBER;\nBEGIN\n  SELECT COUNT(*) INTO user_exists FROM dba_users WHERE username = 'AUTOMATIONTEST';\n  IF user_exists > 0 THEN\n    EXECUTE IMMEDIATE 'DROP USER AUTOMATIONTEST CASCADE';\n  END IF;\nEXCEPTION\n  WHEN OTHERS THEN\n    RAISE;\nEND;\n/\nEOF\n",
+            "_uses_shell": true,
+            "argv": null,
+            "chdir": null,
+            "creates": null,
+            "executable": "/bin/bash",
+            "expand_argument_vars": true,
+            "removes": null,
+            "stdin": null,
+            "stdin_add_newline": true,
+            "strip_empty_ends": true
+        }
+    },
+    "msg": "",
+    "rc": 0,
+    "start": "2025-09-09 15:07:36.964608",
+    "stderr": "",
+    "stderr_lines": [],
+    "stdout": "\nPL/SQL procedure successfully completed.\n\n\nPL/SQL procedure successfully completed.",
+    "stdout_lines": [
+        "",
+        "PL/SQL procedure successfully completed.",
+        "",
+        "",
+        "PL/SQL procedure successfully completed."
+    ]
+}
+
+TASK [oracle_schema_refresh : include_tasks] ************************************************************************************************************************************************
+task path: /home/oracle/rajesh/automation/oracle-schema-refresh/oracle-schema-refresh02/oracle-schema-refresh02/oracle_schema_refresh/tasks/main.yml:32
+included: /home/oracle/rajesh/automation/oracle-schema-refresh/oracle-schema-refresh02/oracle-schema-refresh02/oracle_schema_refresh/tasks/import_schema.yml for 10.219.146.189
+
+TASK [oracle_schema_refresh : Import schema to target] **************************************************************************************************************************************
+task path: /home/oracle/rajesh/automation/oracle-schema-refresh/oracle-schema-refresh02/oracle-schema-refresh02/oracle_schema_refresh/tasks/import_schema.yml:16
+<10.219.146.189> ESTABLISH LOCAL CONNECTION FOR USER: oracle
+<10.219.146.189> EXEC /bin/sh -c 'echo ~oracle && sleep 0'
+<10.219.146.189> EXEC /bin/sh -c '( umask 77 && mkdir -p "` echo /home/oracle/.ansible/tmp `"&& mkdir "` echo /home/oracle/.ansible/tmp/ansible-tmp-1757448457.236628-1033770-102042152746302 `" && echo ansible-tmp-1757448457.236628-1033770-102042152746302="` echo /home/oracle/.ansible/tmp/ansible-tmp-1757448457.236628-1033770-102042152746302 `" ) && sleep 0'
+Using module file /usr/lib/python3.12/site-packages/ansible/modules/command.py
+<10.219.146.189> PUT /home/oracle/.ansible/tmp/ansible-local-10334855bfi9q2w/tmp_5rrlm4t TO /home/oracle/.ansible/tmp/ansible-tmp-1757448457.236628-1033770-102042152746302/AnsiballZ_command.py
+<10.219.146.189> EXEC /bin/sh -c 'chmod u+x /home/oracle/.ansible/tmp/ansible-tmp-1757448457.236628-1033770-102042152746302/ /home/oracle/.ansible/tmp/ansible-tmp-1757448457.236628-1033770-102042152746302/AnsiballZ_command.py && sleep 0'
+<10.219.146.189> EXEC /bin/sh -c 'ORACLE_HOME=/u01/app/oracle/product/19c/dbhome_1 ORACLE_SID=nsqual PATH=/u01/app/oracle/product/19c/dbhome_1/bin:/home/oracle/.local/bin:/home/oracle/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin /usr/bin/python3 /home/oracle/.ansible/tmp/ansible-tmp-1757448457.236628-1033770-102042152746302/AnsiballZ_command.py && sleep 0'
+<10.219.146.189> EXEC /bin/sh -c 'rm -f -r /home/oracle/.ansible/tmp/ansible-tmp-1757448457.236628-1033770-102042152746302/ > /dev/null 2>&1 && sleep 0'
+[WARNING]: As of Ansible 2.4, the parameter 'executable' is no longer supported with the 'command' module. Not using '/u01/app/oracle/product/19c/dbhome_1/bin/impdp'.
+changed: [10.219.146.189] => {
+    "changed": true,
+    "cmd": [
+        "impdp",
+        "testdba/testdba@10.219.146.189:1521/nsqual01",
+        "directory=DATA_PUMP_DIR",
+        "dumpfile=automationtest_schema_refresh.dmp",
+        "remap_schema=AUTOMATIONTEST:AUTOMATIONTEST",
+        "transform=segment_attributes:n",
+        "logfile=import_AUTOMATIONTEST_1757448453.log",
+        "parallel=4"
+    ],
+    "delta": "0:00:07.932712",
+    "end": "2025-09-09 15:07:45.368516",
+    "failed_when_result": false,
+    "invocation": {
+        "module_args": {
+            "_raw_params": "impdp testdba/testdba@10.219.146.189:1521/nsqual01 directory=DATA_PUMP_DIR dumpfile=automationtest_schema_refresh.dmp remap_schema=AUTOMATIONTEST:AUTOMATIONTESTtransform=segment_attributes:n logfile=import_AUTOMATIONTEST_1757448453.log parallel=4\n",
+            "_uses_shell": false,
+            "argv": null,
+            "chdir": null,
+            "creates": null,
+            "executable": "/u01/app/oracle/product/19c/dbhome_1/bin/impdp",
+            "expand_argument_vars": true,
+            "removes": null,
+            "stdin": null,
+            "stdin_add_newline": true,
+            "strip_empty_ends": true
+        }
+    },
+    "msg": "",
+    "rc": 0,
+    "start": "2025-09-09 15:07:37.435804",
+    "stderr": "\nImport: Release 19.0.0.0.0 - Production on Tue Sep 9 15:07:37 2025\nVersion 19.23.0.0.0\n\nCopyright (c) 1982, 2019, Oracle and/or its affiliates.  All rights reserved.\n\nConnected to: Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production\nMaster table \"TESTDBA\".\"SYS_IMPORT_FULL_01\" successfully loaded/unloaded\nStarting \"TESTDBA\".\"SYS_IMPORT_FULL_01\":  testdba/********@10.219.146.189:1521/nsqual01 directory=DATA_PUMP_DIR dumpfile=automationtest_schema_refresh.dmp remap_schema=AUTOMATIONTEST:AUTOMATIONTEST transform=segment_attributes:n logfile=import_AUTOMATIONTEST_1757448453.log parallel=4 \nProcessing object type SCHEMA_EXPORT/USER\nProcessing object type SCHEMA_EXPORT/SYSTEM_GRANT\nProcessing objecttype SCHEMA_EXPORT/ROLE_GRANT\nProcessing object type SCHEMA_EXPORT/DEFAULT_ROLE\nProcessing object type SCHEMA_EXPORT/PRE_SCHEMA/PROCACT_SCHEMA\nProcessing object type SCHEMA_EXPORT/TABLE/TABLE\nProcessing object type SCHEMA_EXPORT/TABLE/TABLE_DATA\n. . imported \"AUTOMATIONTEST\".\"EMPLOYEES\"                5.390 KB       3 rows\n. . imported \"AUTOMATIONTEST\".\"DEPARTMENTS\"              4.968 KB       4 rows\nProcessing object type SCHEMA_EXPORT/TABLE/CONSTRAINT/CONSTRAINT\nProcessing object type SCHEMA_EXPORT/TABLE/INDEX/STATISTICS/INDEX_STATISTICS\nProcessing object type SCHEMA_EXPORT/TABLE/CONSTRAINT/REF_CONSTRAINT\nProcessing object type SCHEMA_EXPORT/TABLE/STATISTICS/TABLE_STATISTICS\nProcessing object type SCHEMA_EXPORT/STATISTICS/MARKER\nJob \"TESTDBA\".\"SYS_IMPORT_FULL_01\" successfully completed at Tue Sep 9 20:07:44 2025 elapsed 0 00:00:07",
+    "stderr_lines": [
+        "",
+        "Import: Release 19.0.0.0.0 - Production on Tue Sep 9 15:07:37 2025",
+        "Version 19.23.0.0.0",
+        "",
+        "Copyright (c) 1982, 2019, Oracle and/or its affiliates.  All rights reserved.",
+        "",
+        "Connected to: Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production",
+        "Master table \"TESTDBA\".\"SYS_IMPORT_FULL_01\" successfully loaded/unloaded",
+        "Starting \"TESTDBA\".\"SYS_IMPORT_FULL_01\":  testdba/********@10.219.146.189:1521/nsqual01 directory=DATA_PUMP_DIR dumpfile=automationtest_schema_refresh.dmp remap_schema=AUTOMATIONTEST:AUTOMATIONTEST transform=segment_attributes:n logfile=import_AUTOMATIONTEST_1757448453.log parallel=4 ",
+        "Processing object type SCHEMA_EXPORT/USER",
+        "Processing object type SCHEMA_EXPORT/SYSTEM_GRANT",
+        "Processing object type SCHEMA_EXPORT/ROLE_GRANT",
+        "Processing object type SCHEMA_EXPORT/DEFAULT_ROLE",
+        "Processing object type SCHEMA_EXPORT/PRE_SCHEMA/PROCACT_SCHEMA",
+        "Processing object type SCHEMA_EXPORT/TABLE/TABLE",
+        "Processing object type SCHEMA_EXPORT/TABLE/TABLE_DATA",
+        ". . imported \"AUTOMATIONTEST\".\"EMPLOYEES\"                5.390 KB       3 rows",
+        ". . imported \"AUTOMATIONTEST\".\"DEPARTMENTS\"              4.968 KB       4 rows",
+        "Processing object type SCHEMA_EXPORT/TABLE/CONSTRAINT/CONSTRAINT",
+        "Processing object type SCHEMA_EXPORT/TABLE/INDEX/STATISTICS/INDEX_STATISTICS",
+        "Processing object type SCHEMA_EXPORT/TABLE/CONSTRAINT/REF_CONSTRAINT",
+        "Processing object type SCHEMA_EXPORT/TABLE/STATISTICS/TABLE_STATISTICS",
+        "Processing object type SCHEMA_EXPORT/STATISTICS/MARKER",
+        "Job \"TESTDBA\".\"SYS_IMPORT_FULL_01\" successfully completed at Tue Sep 9 20:07:44 2025 elapsed 0 00:00:07"
+    ],
+    "stdout": "",
+    "stdout_lines": []
+}
+
+TASK [oracle_schema_refresh : Check import result] ******************************************************************************************************************************************
+task path: /home/oracle/rajesh/automation/oracle-schema-refresh/oracle-schema-refresh02/oracle-schema-refresh02/oracle_schema_refresh/tasks/import_schema.yml:35
+ok: [10.219.146.189] => {
+    "msg": "Schema import completed successfully"
+}
+
+TASK [oracle_schema_refresh : Validate refresh operation] ***********************************************************************************************************************************
+task path: /home/oracle/rajesh/automation/oracle-schema-refresh/oracle-schema-refresh02/oracle-schema-refresh02/oracle_schema_refresh/tasks/main.yml:35
+<10.219.146.189> ESTABLISH LOCAL CONNECTION FOR USER: oracle
+<10.219.146.189> EXEC /bin/sh -c 'echo ~oracle && sleep 0'
+<10.219.146.189> EXEC /bin/sh -c '( umask 77 && mkdir -p "` echo /home/oracle/.ansible/tmp `"&& mkdir "` echo /home/oracle/.ansible/tmp/ansible-tmp-1757448465.4674387-1033848-184141933002294 `" && echo ansible-tmp-1757448465.4674387-1033848-184141933002294="` echo /home/oracle/.ansible/tmp/ansible-tmp-1757448465.4674387-1033848-184141933002294 `" ) && sleep 0'
+Using module file /usr/lib/python3.12/site-packages/ansible/modules/command.py
+<10.219.146.189> PUT /home/oracle/.ansible/tmp/ansible-local-10334855bfi9q2w/tmp6k94p9p2 TO /home/oracle/.ansible/tmp/ansible-tmp-1757448465.4674387-1033848-184141933002294/AnsiballZ_command.py
+<10.219.146.189> EXEC /bin/sh -c 'chmod u+x /home/oracle/.ansible/tmp/ansible-tmp-1757448465.4674387-1033848-184141933002294/ /home/oracle/.ansible/tmp/ansible-tmp-1757448465.4674387-1033848-184141933002294/AnsiballZ_command.py && sleep 0'
+<10.219.146.189> EXEC /bin/sh -c 'ORACLE_HOME=/u01/app/oracle/product/19c/dbhome_1 LD_LIBRARY_PATH=/u01/app/oracle/product/19c/dbhome_1/lib PATH=/u01/app/oracle/product/19c/dbhome_1/bin:/home/oracle/.local/bin:/home/oracle/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin /usr/bin/python3 /home/oracle/.ansible/tmp/ansible-tmp-1757448465.4674387-1033848-184141933002294/AnsiballZ_command.py && sleep 0'
+<10.219.146.189> EXEC /bin/sh -c 'rm -f -r /home/oracle/.ansible/tmp/ansible-tmp-1757448465.4674387-1033848-184141933002294/ > /dev/null 2>&1 && sleep 0'
+changed: [10.219.146.189] => {
+    "changed": true,
+    "cmd": "sqlplus -S \"testdba/testdba@10.219.146.189/nsqual01\" @validate_refresh.sql AUTOMATIONTEST\n",
+    "delta": "0:00:00.877909",
+    "end": "2025-09-09 15:07:46.544213",
+    "failed_when_result": false,
+    "invocation": {
+        "module_args": {
+            "_raw_params": "sqlplus -S \"testdba/testdba@10.219.146.189/nsqual01\" @validate_refresh.sql AUTOMATIONTEST\n",
+            "_uses_shell": true,
+            "argv": null,
+            "chdir": "/home/oracle/rajesh/automation/oracle-schema-refresh/oracle-schema-refresh02/oracle-schema-refresh02/oracle_schema_refresh/files",
+            "creates": null,
+            "executable": null,
+            "expand_argument_vars": true,
+            "removes": null,
+            "stdin": null,
+            "stdin_add_newline": true,
+            "strip_empty_ends": true
+        }
+    },
+    "msg": "",
+    "rc": 0,
+    "start": "2025-09-09 15:07:45.666304",
+    "stderr": "",
+    "stderr_lines": [],
+    "stdout": "Starting validation of schema refresh for schema: AUTOMATIONTEST\n==========================================================\n??? Schema AUTOMATIONTEST exists\n??? Schema AUTOMATIONTEST has 4 objects\n??? Schema AUTOMATIONTEST has 2 tables\n??? Schema AUTOMATIONTEST has 2 indexes\n??? Latest object refresh: 2025-09-09 20:07:43\n??? All objects are valid\n==========================================================\nValidation status: SUCCESS\nValidation completed successfully",
+    "stdout_lines": [
+        "Starting validation of schema refresh for schema: AUTOMATIONTEST",
+        "==========================================================",
+        "??? Schema AUTOMATIONTEST exists",
+        "??? Schema AUTOMATIONTEST has 4 objects",
+        "??? Schema AUTOMATIONTEST has 2 tables",
+        "??? Schema AUTOMATIONTEST has 2 indexes",
+        "??? Latest object refresh: 2025-09-09 20:07:43",
+        "??? All objects are valid",
+        "==========================================================",
+        "Validation status: SUCCESS",
+        "Validation completed successfully"
+    ]
+}
+
+PLAY RECAP **********************************************************************************************************************************************************************************
+10.219.146.189             : ok=12   changed=5    unreachable=0    failed=0    skipped=5    rescued=0    ignored=0

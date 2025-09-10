@@ -1,0 +1,66 @@
+---
+# =============================================================================
+# S3-Optimized Environment Configuration
+# =============================================================================
+# This configuration prioritizes S3 for all transfers with optimal settings
+# Can be used with: ansible-playbook main.yml -e @environments/s3_optimized.yml
+
+# Environment identification
+environment_name: "s3_optimized"
+
+# Force S3 transfer method
+transfer_method: "s3"
+
+# S3 Configuration optimized for performance and reliability
+s3_bucket_name: "oracle-dumps-central"
+s3_bucket_region: "us-east-1"
+s3_bucket_prefix: "oracle-schema-refresh"
+s3_storage_class: "STANDARD"
+
+# S3 Performance optimization
+s3_multipart_threshold: "32MB"
+s3_multipart_chunksize: "8MB"
+s3_max_attempts: 15
+s3_retry_mode: "adaptive"
+
+# S3 Security settings
+s3_server_side_encryption: "AES256"
+s3_use_iam_role: true
+
+# S3 Object management
+s3_object_tags:
+  Project: "oracle-schema-refresh"
+  Environment: "{{ environment_name }}"
+  CreatedBy: "ansible-automation"
+  CostCenter: "database-operations"
+  DataClassification: "internal"
+
+# S3 Lifecycle management for cost optimization
+s3_enable_lifecycle: true
+s3_lifecycle_days_to_ia: 30
+s3_lifecycle_days_to_glacier: 90
+s3_lifecycle_days_to_delete: 365
+
+# S3 Cleanup settings
+s3_cleanup_after_success: false  # Keep for audit
+s3_cleanup_old_objects: true
+s3_cleanup_days_threshold: 30
+
+# Enable fallback to direct transfer if S3 fails
+enable_transfer_fallback: true
+fallback_transfer_method: "direct"
+
+# General Oracle settings optimized for S3 workflows
+parallel_threads: 4
+detailed_logging: true
+backup_before_drop: true
+
+# Increased timeouts for S3 operations
+transfer_retry_count: 5
+transfer_retry_delay: 60
+datapump_operation_timeout: 10800  # 3 hours
+
+# Enhanced validation for S3 operations
+enable_preflight_checks: true
+schema_existence_check: "strict"
+validation_required: true
